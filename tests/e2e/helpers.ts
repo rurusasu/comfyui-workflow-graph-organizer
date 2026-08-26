@@ -52,6 +52,23 @@ export interface GraphState {
   groups: ExtractedGroup[];
 }
 
+export interface GraphSemantics {
+  nodes: Array<{
+    id: number;
+    type: string;
+    mode: number;
+    widgets: unknown;
+    inputs: Array<{ name: string; type: unknown; link: number | null }>;
+  }>;
+  links: Array<{
+    id: number;
+    originId: number;
+    originSlot: number;
+    targetId: number;
+    targetSlot: number;
+  }>;
+}
+
 export interface GroupMembershipSnapshot {
   title: string;
   parentTitle: string | null;
@@ -454,6 +471,53 @@ export async function extractGraphState(page: Page): Promise<GraphState> {
     });
 
     return { nodes, links, groups };
+  });
+}
+
+/** Capture only JSON-safe execution semantics, never ComfyUI runtime objects. */
+export async function extractGraphSemantics(page: Page): Promise<GraphSemantics> {
+  return page.evaluate(() => {
+    const w = window as unknown as Record<string, unknown>;
+    const appObj = w.app as Record<string, unknown>;
+    const canvas = appObj.canvas as Record<string, unknown> & {
+      getCurrentGraph?: () => Record<string, unknown> | undefined;
+    };
+    const graph = (canvas.getCurrentGraph?.() ??
+      canvas.graph ??
+      appObj.graph) as {
+      _nodes: Array<Record<string, unknown>>;
+      links: Map<number, Record<string, unknown>> | Record<string, Record<string, unknown>>;
+    };
+    const cloneJsonValue = (value: unknown): unknown =>
+      value === undefined ? null : JSON.parse(JSON.stringify(value));
+    const links = graph.links instanceof Map
+      ? Array.from(graph.links.values())
+      : Object.values(graph.links);
+
+    return {
+      nodes: graph._nodes.map((node) => ({
+        id: Number(node.id),
+        type: String(node.type),
+        mode: Number(node.mode),
+        widgets: cloneJsonValue(node.widgets_values),
+        inputs: ((node.inputs as Array<Record<string, unknown>> | undefined) ?? []).map(
+          (input) => ({
+            name: String(input.name),
+            type: cloneJsonValue(input.type),
+            link: input.link == null ? null : Number(input.link),
+          }),
+        ),
+      })),
+      links: links
+        .filter((link): link is Record<string, unknown> => link != null)
+        .map((link) => ({
+          id: Number(link.id),
+          originId: Number(link.origin_id),
+          originSlot: Number(link.origin_slot),
+          targetId: Number(link.target_id),
+          targetSlot: Number(link.target_slot),
+        })),
+    };
   });
 }
 
@@ -1123,7 +1187,7 @@ function isSnapshotSurfaceEquivalent(
   );
 }
 
-async function waitForSnapshotSurfaceToStabilize(page: Page): Promise<void> {
+export async function waitForSnapshotSurfaceToStabilize(page: Page): Promise<void> {
   const deadline = Date.now() + e2eConfig.timeouts.organize;
   let previous = await extractSnapshotSurfaceState(page);
   let stablePolls = 0;

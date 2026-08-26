@@ -6,6 +6,7 @@ import {
   triggerOrganize,
   expectGraphCanvasScreenshot,
   setBooleanSetting,
+  waitForSnapshotSurfaceToStabilize,
 } from "./helpers";
 import { loadFixture } from "./fixtures";
 import { SETTING_IDS } from "../../src/settings";
@@ -59,6 +60,7 @@ test.describe("Visual Regression", () => {
   test("subgraph graph canvas after organize", async ({ page }) => {
     await loadWorkflow(page, loadFixture("subgraph-io"));
     await openFirstSubgraph(page);
+    await waitForSnapshotSurfaceToStabilize(page);
     await triggerOrganize(page);
     await expectGraphCanvasScreenshot(page, "subgraph-io-organized.png");
   });

@@ -3,6 +3,7 @@ import {
   waitForComfyUI,
   loadWorkflow,
   extractGraphState,
+  extractGraphSemantics,
   extractGroupMemberships,
   triggerOrganize,
   triggerWholeWorkflow,
@@ -22,26 +23,7 @@ test.describe("Organize Workflow", () => {
     page,
   }) => {
     await loadWorkflow(page, loadFixture("whole-workflow-layout"));
-    const beforeSemantics = await page.evaluate(() => {
-      const appObj = (window as unknown as Record<string, unknown>).app as Record<string, unknown>;
-      const canvas = appObj.canvas as Record<string, unknown> & {
-        getCurrentGraph?: () => Record<string, unknown> | undefined;
-      };
-      const graph = (canvas.getCurrentGraph?.() ?? canvas.graph ?? appObj.graph) as {
-        _nodes: Array<Record<string, unknown>>;
-        links: Map<number, Record<string, unknown>> | Record<string, Record<string, unknown>>;
-      };
-      return {
-        nodes: graph._nodes.map((node) => ({
-          id: node.id,
-          type: node.type,
-          mode: node.mode,
-          widgets: node.widgets_values,
-          inputs: node.inputs,
-        })),
-        links: graph.links instanceof Map ? Array.from(graph.links.values()) : Object.values(graph.links),
-      };
-    });
+    const beforeSemantics = await extractGraphSemantics(page);
 
     await triggerWholeWorkflow(page);
     await assertStructuredWorkflowInvariants(page);
@@ -49,26 +31,7 @@ test.describe("Organize Workflow", () => {
     await triggerWholeWorkflow(page);
     expect(await extractGraphState(page)).toEqual(afterFirstRun);
 
-    const afterSemantics = await page.evaluate(() => {
-      const appObj = (window as unknown as Record<string, unknown>).app as Record<string, unknown>;
-      const canvas = appObj.canvas as Record<string, unknown> & {
-        getCurrentGraph?: () => Record<string, unknown> | undefined;
-      };
-      const graph = (canvas.getCurrentGraph?.() ?? canvas.graph ?? appObj.graph) as {
-        _nodes: Array<Record<string, unknown>>;
-        links: Map<number, Record<string, unknown>> | Record<string, Record<string, unknown>>;
-      };
-      return {
-        nodes: graph._nodes.map((node) => ({
-          id: node.id,
-          type: node.type,
-          mode: node.mode,
-          widgets: node.widgets_values,
-          inputs: node.inputs,
-        })),
-        links: graph.links instanceof Map ? Array.from(graph.links.values()) : Object.values(graph.links),
-      };
-    });
+    const afterSemantics = await extractGraphSemantics(page);
     expect(afterSemantics).toEqual(beforeSemantics);
 
     const organized = await extractGraphState(page);
