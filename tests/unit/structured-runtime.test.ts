@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyStructuredGeometry,
+  restoreGraphGeometry,
   runWholeWorkflowLayout,
   sameGeometry,
+  snapshotGraphGeometry,
   StructuredLayoutError,
 } from "../../src/structured-runtime";
 import { runWholeWorkflowLayout as runFromRuntime } from "../../src/runtime";
@@ -18,6 +21,8 @@ type TestNode = {
   widgets: { readonly value: string }[];
   inputs: { link: number | null; readonly name: string }[];
   outputs: { links: number[] | null; readonly name: string }[];
+  flags?: { readonly collapsed: boolean };
+  measure?(this: TestNode, out: [number, number, number, number]): void;
 };
 
 type TestGroup = {
@@ -109,6 +114,96 @@ function semanticsOf(graph: TestGraph) {
 }
 
 describe("runWholeWorkflowLayout", () => {
+  it("uses normal-node display geometry for background fitting and preserves its underlying position", () => {
+    const graph = makeGraph({
+      nodes: [
+        {
+          id: 1,
+          type: "Sampler",
+          title: "Sampler",
+          pos: [100, 100],
+          size: [200, 110],
+          mode: 4,
+          widgets: [],
+          inputs: [],
+          outputs: [],
+          measure(out) {
+            out[0] = this.pos[0];
+            out[1] = this.pos[1] - 20;
+            out[2] = 200;
+            out[3] = 130;
+          },
+        },
+      ],
+      groups: [{ id: 9, title: "Group", pos: [0, 0], size: [500, 400] }],
+    });
+
+    expect(snapshotGraphGeometry(graph).nodes).toEqual([
+      { id: "1", type: "Sampler", x: 100, y: 80, width: 200, height: 130 },
+    ]);
+
+    runWholeWorkflowLayout(
+      graph,
+      () => {
+        graph.events.push("engine");
+        graph._nodes[0]!.pos = [300, 300];
+      },
+      DEFAULT_STRUCTURED_LAYOUT_CONFIG,
+    );
+
+    expect(graph._nodes[0]!.pos).toEqual([300, 300]);
+    expect(graph._nodes[0]!.size).toEqual([200, 110]);
+    expect(graph._groups[0]).toMatchObject({
+      pos: [252, 208],
+      size: [296, 250],
+    });
+  });
+
+  it("uses collapsed display geometry and restores the underlying position exactly", () => {
+    const graph = makeGraph({
+      nodes: [
+        {
+          id: 1,
+          type: "Sampler",
+          title: "Sampler",
+          pos: [50, 80],
+          size: [400, 300],
+          mode: 4,
+          widgets: [],
+          inputs: [],
+          outputs: [],
+          flags: { collapsed: true },
+          measure(out) {
+            out[0] = this.pos[0];
+            out[1] = this.pos[1] - 20;
+            out[2] = 150;
+            out[3] = 20;
+          },
+        },
+      ],
+    });
+    const original = snapshotGraphGeometry(graph);
+
+    expect(original.nodes).toEqual([
+      { id: "1", type: "Sampler", x: 50, y: 60, width: 150, height: 20 },
+    ]);
+
+    applyStructuredGeometry(graph, {
+      nodes: [{ id: "1", type: "Sampler", x: 300, y: 280, width: 150, height: 20 }],
+      groups: [],
+    });
+    expect(graph._nodes[0]!.pos).toEqual([300, 300]);
+    expect(graph._nodes[0]!.size).toEqual([400, 300]);
+    expect(graph._nodes[0]!.flags).toEqual({ collapsed: true });
+
+    graph._nodes[0]!.pos = [900, 900];
+    restoreGraphGeometry(graph, original);
+
+    expect(graph._nodes[0]!.pos).toEqual([50, 80]);
+    expect(graph._nodes[0]!.size).toEqual([400, 300]);
+    expect(graph._nodes[0]!.flags).toEqual({ collapsed: true });
+  });
+
   it("uses one transaction and renders after a successful structured layout", () => {
     const graph = makeGraph();
 

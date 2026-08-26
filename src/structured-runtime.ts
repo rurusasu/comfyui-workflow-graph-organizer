@@ -75,7 +75,7 @@ export function applyStructuredGeometry(
   for (const node of graph._nodes) {
     const rect = nodeById.get(String(node.id));
     if (rect) {
-      writePosition(node.pos, rect.x, rect.y);
+      writeNodeDisplayPosition(node, rect);
     }
   }
   if (graph.inputNode) {
@@ -143,7 +143,21 @@ function nodeRect(node: {
   readonly type: string;
   readonly pos: ArrayLike<number>;
   readonly size: ArrayLike<number>;
+  measure?(out: [number, number, number, number]): void;
 }): WorkflowNodeRect {
+  if (node.measure) {
+    const measured: [number, number, number, number] = [0, 0, 0, 0];
+    node.measure(measured);
+    return {
+      id: String(node.id),
+      type: node.type,
+      x: Number(measured[0]),
+      y: Number(measured[1]),
+      width: Number(measured[2]),
+      height: Number(measured[3]),
+    };
+  }
+
   return {
     id: String(node.id),
     type: node.type,
@@ -152,6 +166,29 @@ function nodeRect(node: {
     width: Number(node.size[0]),
     height: Number(node.size[1]),
   };
+}
+
+function writeNodeDisplayPosition(
+  node: {
+    readonly id: string | number;
+    readonly type: string;
+    readonly pos: ArrayLike<number>;
+    readonly size: ArrayLike<number>;
+    measure?(out: [number, number, number, number]): void;
+  },
+  target: WorkflowNodeRect,
+): void {
+  if (!node.measure) {
+    writePosition(node.pos, target.x, target.y);
+    return;
+  }
+
+  const current = nodeRect(node);
+  writePosition(
+    node.pos,
+    target.x + Number(node.pos[0]) - current.x,
+    target.y + Number(node.pos[1]) - current.y,
+  );
 }
 
 function boundaryNodeRect(

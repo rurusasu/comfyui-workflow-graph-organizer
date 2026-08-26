@@ -36,6 +36,7 @@ interface GraphNode {
   readonly title: string;
   readonly pos: ArrayLike<number>;
   readonly size: ArrayLike<number>;
+  measure?(out: [number, number, number, number]): void;
   readonly inputs?: ReadonlyArray<{ link: number | null }>;
   readonly outputs?: ReadonlyArray<{ links: number[] | null }>;
 }
