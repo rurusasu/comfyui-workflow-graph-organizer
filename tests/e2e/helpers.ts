@@ -939,9 +939,11 @@ export async function captureScreenshot(page: Page, name: string): Promise<strin
 
 /** Fit the current graph into view using the real canvas toolbar control. */
 export async function fitGraphForSnapshot(page: Page): Promise<void> {
+  await waitForSnapshotSurfaceToStabilize(page);
   const before = await extractViewportState(page);
   await page.getByRole("button", { name: /Fit View/ }).click({ force: true });
   await waitForViewportToStabilize(page, before);
+  await waitForSnapshotSurfaceToStabilize(page);
 }
 
 /** Compare only the graph canvas, not the full ComfyUI shell. */
@@ -1041,6 +1043,11 @@ interface ViewportState {
   dirtyBgCanvas: boolean;
 }
 
+interface SnapshotSurfaceState {
+  viewport: ViewportState;
+  domWidgets: string;
+}
+
 async function extractViewportState(page: Page): Promise<ViewportState> {
   return page.evaluate(() => {
     const w = window as unknown as Record<string, unknown>;
@@ -1060,6 +1067,81 @@ async function extractViewportState(page: Page): Promise<ViewportState> {
       dirtyBgCanvas: !!canvas.dirty_bgcanvas,
     };
   });
+}
+
+async function extractSnapshotSurfaceState(
+  page: Page,
+): Promise<SnapshotSurfaceState> {
+  return page.evaluate(() => {
+    const w = window as unknown as Record<string, unknown>;
+    const appObj = w.app as Record<string, unknown>;
+    const canvas = appObj.canvas as {
+      ds: { offset: [number, number]; scale: number };
+      dirty_canvas?: boolean;
+      dirty_bgcanvas?: boolean;
+    };
+    const domWidgets = Array.from(
+      document.querySelectorAll<HTMLElement>(".dom-widget"),
+    ).map((element, index) => {
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return [
+        index,
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height,
+        style.display,
+        style.visibility,
+        style.opacity,
+        element.textContent?.trim() ?? "",
+      ];
+    });
+
+    return {
+      viewport: {
+        offset: [Number(canvas.ds.offset[0]), Number(canvas.ds.offset[1])] as [
+          number,
+          number,
+        ],
+        scale: Number(canvas.ds.scale),
+        dirtyCanvas: !!canvas.dirty_canvas,
+        dirtyBgCanvas: !!canvas.dirty_bgcanvas,
+      },
+      domWidgets: JSON.stringify(domWidgets),
+    };
+  });
+}
+
+function isSnapshotSurfaceEquivalent(
+  a: SnapshotSurfaceState,
+  b: SnapshotSurfaceState,
+): boolean {
+  return (
+    isViewportEquivalent(a.viewport, b.viewport) &&
+    a.domWidgets === b.domWidgets
+  );
+}
+
+async function waitForSnapshotSurfaceToStabilize(page: Page): Promise<void> {
+  const deadline = Date.now() + e2eConfig.timeouts.organize;
+  let previous = await extractSnapshotSurfaceState(page);
+  let stablePolls = 0;
+
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(100);
+    const current = await extractSnapshotSurfaceState(page);
+    const isStable =
+      isSnapshotSurfaceEquivalent(current, previous) &&
+      !current.viewport.dirtyCanvas &&
+      !current.viewport.dirtyBgCanvas;
+
+    stablePolls = isStable ? stablePolls + 1 : 0;
+    if (stablePolls >= 5) return;
+    previous = current;
+  }
+
+  throw new Error("ComfyUI snapshot surface did not stabilize");
 }
 
 function isViewportEquivalent(a: ViewportState, b: ViewportState): boolean {
