@@ -19,6 +19,20 @@ export {
   type Rect,
 } from "./group-membership";
 
+export {
+  captureWorkflowStructure,
+  DEFAULT_STRUCTURED_LAYOUT_CONFIG,
+  normalizeStructuredLayout,
+  validateStructuredLayout,
+  type GeometryRect,
+  type LayoutViolation,
+  type StructuredLayoutConfig,
+  type StructuredLayoutInput,
+  type StructuredLayoutResult,
+  type WorkflowNodeRect,
+  type WorkflowStructure,
+} from "./structured-layout";
+
 export interface WorkflowNode {
   readonly id: string;
   readonly width: number;
