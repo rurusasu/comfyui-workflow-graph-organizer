@@ -187,6 +187,7 @@ export function applyLayoutOutput(
     readonly positions: ReadonlyMap<string, Position>;
     readonly groupBounds: ReadonlyMap<string, GroupBounds>;
   },
+  options: { readonly markDirty?: boolean } = {},
 ): void {
   // Apply node positions
   for (const node of graph._nodes) {
@@ -240,7 +241,7 @@ export function applyLayoutOutput(
   }
 
   // Mark canvas as dirty
-  if (graph.setDirtyCanvas) {
+  if (options.markDirty !== false && graph.setDirtyCanvas) {
     graph.setDirtyCanvas(true, true);
   }
 

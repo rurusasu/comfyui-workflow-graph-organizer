@@ -40,9 +40,12 @@ test.describe("UI smoke", () => {
     await loadWorkflow(page, loadFixture("simple-dag"));
   });
 
-  test("action bar organize button runs layout", async ({ page }) => {
+  test("action bar Organize Workflow button runs layout", async ({ page }) => {
     const before = await extractGraphState(page);
-    await page.getByRole("button", { name: "Organize" }).click();
+    await page
+      .locator("button")
+      .filter({ hasText: /^Organize Workflow$/ })
+      .click();
     await page.waitForTimeout(1000);
     const after = await extractGraphState(page);
 

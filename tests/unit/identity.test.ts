@@ -44,6 +44,7 @@ describe("public identity", () => {
         combo: { key: string; shift?: boolean };
       }>;
       menuCommands: Array<{ path: string[]; commands: string[] }>;
+      actionBarButtons: Array<{ label: string }>;
       settings: Array<{ id: string; category: string[] }>;
     };
     const globalScope = globalThis as typeof globalThis & {
@@ -93,6 +94,9 @@ describe("public identity", () => {
             "workflow-graph-organizer.organize-groups",
           ],
         },
+      ]);
+      expect(extension.actionBarButtons).toEqual([
+        expect.objectContaining({ label: "Organize Workflow" }),
       ]);
       expect(extension.settings.map(({ id, category }) => ({ id, category }))).toEqual([
         {
@@ -170,6 +174,7 @@ describe("public identity", () => {
         commands: extension.commands.map(({ id }) => id),
         keybindings: extension.keybindings,
         menuCommands: extension.menuCommands,
+        actionBarButtons: extension.actionBarButtons.map(({ label }) => ({ label })),
         settings: extension.settings,
       });
       expect(registrationIds).not.toContain(UPSTREAM_EXTENSION_NAME);

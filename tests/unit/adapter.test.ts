@@ -578,6 +578,30 @@ describe("applyLayoutOutput", () => {
     expect(dirtyCalled).toBe(true);
   });
 
+  it("can suppress its dirty mark when an enclosing transaction owns rendering", () => {
+    let dirtyCalls = 0;
+    const graph = makeGraph({
+      nodes: [
+        { id: 1, type: "A", title: "A", pos: [0, 0], size: [100, 50] },
+      ],
+    });
+    (graph as { setDirtyCanvas: (fg: boolean, bg: boolean) => void }).setDirtyCanvas = () => {
+      dirtyCalls++;
+    };
+
+    applyLayoutOutput(
+      graph,
+      {
+        positions: new Map([["1", { x: 100, y: 200 }]]),
+        groupBounds: new Map(),
+      },
+      { markDirty: false },
+    );
+
+    expect(graph._nodes[0].pos).toEqual([100, 200]);
+    expect(dirtyCalls).toBe(0);
+  });
+
   it("skips nodes without matching position data", () => {
     const graph = makeGraph({
       nodes: [

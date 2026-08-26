@@ -150,7 +150,7 @@ export function runWholeWorkflowLayout(
     }
     applyStructuredGeometry(graph, normalized, original.nodeDisplayMetricsById);
     graph.setDirtyCanvas?.(true, true);
-    return summarize(normalized, structure.commentIds.length, engineChanged);
+    return summarize(normalized, structure.commentIds, engineChanged);
   } catch (error) {
     restoreGraphGeometry(graph, original);
     graph.setDirtyCanvas?.(true, true);
@@ -291,13 +291,19 @@ function sameRects(
 
 function summarize(
   geometry: StructuredLayoutResult,
-  comments: number,
+  commentIds: readonly string[],
   engineChanged: boolean,
 ): OrganizationSummary {
+  const commentIdSet = new Set(commentIds);
   return {
-    nodes: geometry.nodes.length,
+    nodes: geometry.nodes.filter(
+      (node) =>
+        !commentIdSet.has(node.id) &&
+        node.type !== "SubgraphInput" &&
+        node.type !== "SubgraphOutput",
+    ).length,
     groups: geometry.groups.length,
-    comments,
+    comments: commentIds.length,
     violations: 0,
     engineChanged,
   };

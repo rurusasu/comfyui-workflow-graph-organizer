@@ -4,6 +4,7 @@ import {
   readStructuredLayoutConfig,
   SETTING_IDS,
 } from "../../src/settings";
+import type { GraphLike } from "../../src/adapter";
 
 type Toast = {
   severity?: string;
@@ -19,7 +20,7 @@ type RegisteredExtension = {
     combo: { key: string; shift?: boolean };
   }>;
   menuCommands: Array<{ path: string[]; commands: string[] }>;
-  actionBarButtons: Array<{ onClick: () => void }>;
+  actionBarButtons: Array<{ label: string; onClick: () => void }>;
   getCanvasMenuItems: () => Array<{ content: string; callback: () => void } | null>;
   settings: Array<{ id: string; category: string[] }>;
 };
@@ -36,6 +37,9 @@ async function register(options?: {
   readonly commandIds?: readonly string[];
   readonly extensionNames?: readonly string[];
   readonly settings?: Readonly<Record<string, unknown>>;
+  readonly graph?: GraphLike;
+  readonly onRunWholeWorkflowLayout?: (graph: GraphLike) => void;
+  readonly animateToBounds?: ReturnType<typeof vi.fn>;
 }): Promise<{
   extension: RegisteredExtension;
   toasts: Toast[];
@@ -43,10 +47,12 @@ async function register(options?: {
   runWholeWorkflowLayout: ReturnType<typeof vi.fn>;
   restore: () => void;
 }> {
-  const runWholeWorkflowLayout = vi.fn(() => {
+  const graph = options?.graph ?? { _nodes: [], _groups: [], links: new Map() };
+  const runWholeWorkflowLayout = vi.fn((targetGraph: GraphLike) => {
+    options?.onRunWholeWorkflowLayout?.(targetGraph);
     if (options?.failure) throw options.failure;
     return options?.result ?? {
-      nodes: 4,
+      nodes: 3,
       groups: 1,
       comments: 1,
       violations: 0 as const,
@@ -62,7 +68,7 @@ async function register(options?: {
   vi.resetModules();
   vi.doMock("../../src/runtime", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../../src/runtime")>()),
-    getCurrentGraph: () => ({ _nodes: [], _groups: [], links: new Map() }),
+    getCurrentGraph: () => graph,
     getSelectedGroups: () => [],
     runWholeWorkflowLayout,
   }));
@@ -83,8 +89,9 @@ async function register(options?: {
       toast: { add: (toast: Toast) => toasts.push(toast) },
     },
     canvas: {
-      graph: { _nodes: [], _groups: [], links: new Map() },
+      graph,
       selectedItems: new Set(),
+      animateToBounds: options?.animateToBounds,
     },
   };
 
@@ -139,6 +146,9 @@ describe("whole-workflow extension registration", () => {
           ],
         },
       ]);
+      expect(registered.extension.actionBarButtons.map(({ label }) => label)).toEqual([
+        "Organize Workflow",
+      ]);
     } finally {
       registered.restore();
     }
@@ -153,7 +163,9 @@ describe("whole-workflow extension registration", () => {
       expect(registered.toasts).toEqual([
         expect.objectContaining({ severity: "success" }),
       ]);
-      expect(registered.toasts[0]?.detail).toContain("4 nodes");
+      expect(registered.toasts[0]?.detail).toBe(
+        "Organized 3 nodes, 1 backgrounds, and 1 comments.",
+      );
     } finally {
       registered.restore();
     }
@@ -207,6 +219,68 @@ describe("whole-workflow extension registration", () => {
       expect(registered.runWholeWorkflowLayout).toHaveBeenCalledOnce();
     } finally {
       registered.restore();
+    }
+  });
+
+  it("fits using refreshed rendered bounds rather than stale pre-layout bounds", async () => {
+    const frames: FrameRequestCallback[] = [];
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+    const animateToBounds = vi.fn();
+    const graph = {
+      _nodes: [
+        {
+          id: 1,
+          type: "Sampler",
+          title: "Sampler",
+          pos: [0, 0],
+          size: [100, 50],
+          boundingRect: [0, 0, 10, 10],
+          inputs: [],
+          outputs: [],
+        },
+      ],
+      _groups: [],
+      links: new Map(),
+    } as unknown as GraphLike;
+    Object.defineProperty(globalThis, "requestAnimationFrame", {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => {
+        frames.push(callback);
+        return frames.length;
+      },
+    });
+
+    const registered = await register({
+      graph,
+      animateToBounds,
+      settings: { [SETTING_IDS.FIT_TO_VIEW]: true },
+      onRunWholeWorkflowLayout: () => {
+        const node = graph._nodes[0] as unknown as { pos: number[] };
+        node.pos = [500, 200];
+      },
+    });
+    try {
+      primaryCommand(registered.extension)();
+      const firstFrame = frames.shift();
+      if (!firstFrame) throw new Error("Expected the first rendered-frame callback");
+      firstFrame(0);
+
+      const node = graph._nodes[0] as unknown as { boundingRect: number[] };
+      node.boundingRect = [500, 200, 100, 50];
+      expect(frames).toHaveLength(1);
+      const secondFrame = frames.shift();
+      if (!secondFrame) throw new Error("Expected the second rendered-frame callback");
+      secondFrame(16);
+
+      expect(animateToBounds).toHaveBeenCalledWith([500, 200, 100, 50], {
+        zoom: 0.9,
+      });
+    } finally {
+      registered.restore();
+      Object.defineProperty(globalThis, "requestAnimationFrame", {
+        configurable: true,
+        value: originalRequestAnimationFrame,
+      });
     }
   });
 });

@@ -163,25 +163,27 @@ function warnAboutUpstreamOrganizer(): void {
 
 function fitCurrentGraphToView(graph: GraphLike): void {
   if (!getFitToView()) return;
-  const geometry = snapshotGraphGeometry(graph);
-  const rects = [...geometry.nodes, ...geometry.groups];
-  if (rects.length === 0) return;
-
-  const minX = Math.min(...rects.map((rect) => rect.x));
-  const minY = Math.min(...rects.map((rect) => rect.y));
-  const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
-  const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
-  if (![minX, minY, maxX, maxY].every(Number.isFinite)) return;
-
   requestAnimationFrame(() => {
-    const canvas = app.canvas as {
-      animateToBounds?: (
-        bounds: readonly [number, number, number, number],
-        opts?: { zoom?: number },
-      ) => void;
-    } | null;
-    canvas?.animateToBounds?.([minX, minY, maxX - minX, maxY - minY], {
-      zoom: 0.9,
+    requestAnimationFrame(() => {
+      const geometry = snapshotGraphGeometry(graph);
+      const rects = [...geometry.nodes, ...geometry.groups];
+      if (rects.length === 0) return;
+
+      const minX = Math.min(...rects.map((rect) => rect.x));
+      const minY = Math.min(...rects.map((rect) => rect.y));
+      const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
+      const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
+      if (![minX, minY, maxX, maxY].every(Number.isFinite)) return;
+
+      const canvas = app.canvas as {
+        animateToBounds?: (
+          bounds: readonly [number, number, number, number],
+          opts?: { zoom?: number },
+        ) => void;
+      } | null;
+      canvas?.animateToBounds?.([minX, minY, maxX - minX, maxY - minY], {
+        zoom: 0.9,
+      });
     });
   });
 }
@@ -191,14 +193,17 @@ function fitCurrentGraphToView(graph: GraphLike): void {
 // ---------------------------------------------------------------------------
 
 /** Run the upstream-derived node engine directly; it is not a registered command. */
-function runNodeLayoutEngine(graph: GraphLike): void {
+function runNodeLayoutEngine(
+  graph: GraphLike,
+  options: { readonly markDirty?: boolean } = {},
+): void {
   const config = getFrameworkConfig();
   const algorithm = getDefaultAlgorithm(config);
   const start = performance.now();
   debugLog(`Starting node layout with ${algorithm.name}...`);
   const { nodes, edges, groups } = extractLayoutInput(graph);
   const result = layoutWithGroups(nodes, edges, groups, algorithm, config);
-  applyLayoutOutput(graph, result);
+  applyLayoutOutput(graph, result, options);
   debugLog(
     `Organized ${nodes.length} nodes in ${(performance.now() - start).toFixed(1)}ms with ${algorithm.name}`,
   );
@@ -229,7 +234,7 @@ function organizeWorkflow(): void {
   try {
     const summary = runWholeWorkflowLayout(
       graph,
-      () => runNodeLayoutEngine(graph),
+      () => runNodeLayoutEngine(graph, { markDirty: false }),
       getStructuredLayoutConfig(),
     );
     fitCurrentGraphToView(graph);
@@ -542,7 +547,7 @@ app.registerExtension({
 
   actionBarButtons: [
     {
-      label: "Organize",
+      label: "Organize Workflow",
       icon: "pi pi-sitemap",
       tooltip: "Organize the complete workflow",
       onClick: organizeWorkflow,

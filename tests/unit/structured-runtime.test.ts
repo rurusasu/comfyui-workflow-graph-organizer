@@ -313,6 +313,52 @@ describe("runWholeWorkflowLayout", () => {
     expect(graph.events).toEqual(["before", "engine", "dirty", "after"]);
   });
 
+  it("reports regular node and comment counts separately", () => {
+    const graph = makeGraph({
+      nodes: [
+        {
+          id: 1,
+          type: "Sampler",
+          title: "Sampler",
+          pos: [100, 100],
+          size: [100, 80],
+          mode: 4,
+          widgets: [],
+          inputs: [],
+          outputs: [],
+        },
+        {
+          id: 2,
+          type: "MarkdownNote",
+          title: "Comment",
+          pos: [100, -100],
+          size: [160, 90],
+          mode: 0,
+          widgets: [],
+          inputs: [],
+          outputs: [],
+        },
+      ],
+    });
+
+    const summary = runWholeWorkflowLayout(
+      graph,
+      () => {
+        graph.events.push("engine");
+        graph._nodes[0]!.pos = [300, 200];
+      },
+      DEFAULT_STRUCTURED_LAYOUT_CONFIG,
+    );
+
+    expect(summary).toEqual({
+      nodes: 1,
+      groups: 0,
+      comments: 1,
+      violations: 0,
+      engineChanged: true,
+    });
+  });
+
   it("compares geometry by stable ID when the upstream engine reorders arrays", () => {
     const graph = makeGraph({
       nodes: [

@@ -210,7 +210,6 @@ settings required by the new behavior:
 - root-background gap;
 - comment gap and lane gap;
 - ungrouped-cluster gap;
-- whole-workflow or node-only default action, with whole-workflow as default.
 
 Defaults produce a readable layout without requiring configuration. Settings
 are validated as finite, non-negative numbers and fall back to documented
