@@ -127,7 +127,7 @@ jobs:
             git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
             test "$(git rev-list -n 1 "$TAG")" = "$RELEASE_SHA"
           else
-            git tag -a "$TAG" -m "Release $TAG" "$RELEASE_SHA"
+            bash scripts/create-release-tag.sh "$TAG" "$RELEASE_SHA"
             git push origin "refs/tags/$TAG"
           fi
           release_body="$(mktemp)"
