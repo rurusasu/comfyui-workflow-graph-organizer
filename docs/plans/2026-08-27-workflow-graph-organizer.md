@@ -10,7 +10,7 @@
 
 **Tech Stack:** TypeScript 5.9, pnpm 10, Vitest 4, fast-check 4, Vite 7, Playwright 1.58, Python 3.14 for the live ComfyUI, Comfy Registry, GitHub Actions, chezmoi.
 
-**Spec:** `docs/superpowers/specs/2026-08-27-comfyui-workflow-graph-organizer-fork-design.md`
+**Spec:** `docs/design/2026-08-27-workflow-graph-organizer.md`
 
 ## Global Constraints
 
