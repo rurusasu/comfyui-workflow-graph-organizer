@@ -1,5 +1,5 @@
 /**
- * ComfyUI Node Organizer — extension entry point.
+ * ComfyUI Workflow Graph Organizer — extension entry point.
  *
  * Registers commands, keybindings, settings, and context menu items
  * that wire the pure layout framework into ComfyUI's runtime.
@@ -12,6 +12,7 @@ import {
 } from "./layout/algorithm-factory";
 import {
   SETTING_IDS,
+  COMMAND_PREFIX,
   EXTENSION_NAME,
   SETTINGS_PREFIX,
   REPOSITORY_URL,
@@ -106,7 +107,7 @@ function getFitToView(): boolean {
 function executeOrganization(mode: "workflow" | "groups"): void {
   const graph = getCurrentGraph(app as AppLike<GraphLike>);
   if (!graph) {
-    console.warn("[node-organizer] No active graph");
+    console.warn(`[${COMMAND_PREFIX}] No active graph`);
     return;
   }
 
@@ -168,7 +169,7 @@ function executeOrganization(mode: "workflow" | "groups"): void {
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[node-organizer] ${mode} layout failed: ${message}`);
+    console.error(`[${COMMAND_PREFIX}] ${mode} layout failed: ${message}`);
   }
 }
 
@@ -181,7 +182,7 @@ function organizeWorkflow(): void {
 function organizeSelectedGroups(): void {
   const selectedGroups = getSelectedGroups(app.canvas);
   if (selectedGroups.length === 0) {
-    console.warn("[node-organizer] No groups selected");
+    console.warn(`[${COMMAND_PREFIX}] No groups selected`);
     return;
   }
   executeOrganization("groups");
@@ -320,7 +321,7 @@ app.registerExtension({
 
   commands: [
     {
-      id: "node-organizer.organize",
+      id: `${COMMAND_PREFIX}.organize`,
       function: organizeContextAware,
       label: "Organize",
       icon: "pi pi-sitemap",
@@ -328,14 +329,14 @@ app.registerExtension({
         "Organize selected groups if any are selected, otherwise organize the full workflow",
     },
     {
-      id: "node-organizer.organize-workflow",
+      id: `${COMMAND_PREFIX}.organize-workflow`,
       function: organizeWorkflow,
       label: "Organize Workflow",
       icon: "pi pi-sitemap",
       tooltip: "Organize all nodes in the current view",
     },
     {
-      id: "node-organizer.organize-groups",
+      id: `${COMMAND_PREFIX}.organize-groups`,
       function: organizeSelectedGroups,
       label: "Organize Group",
       icon: "pi pi-objects-column",
@@ -345,17 +346,17 @@ app.registerExtension({
 
   keybindings: [
     {
-      commandId: "node-organizer.organize",
+      commandId: `${COMMAND_PREFIX}.organize`,
       combo: { key: "o", shift: true },
     },
   ],
 
   menuCommands: [
     {
-      path: ["Extensions", "Node Organizer"],
+      path: ["Extensions", "Workflow Graph Organizer"],
       commands: [
-        "node-organizer.organize-workflow",
-        "node-organizer.organize-groups",
+        `${COMMAND_PREFIX}.organize-workflow`,
+        `${COMMAND_PREFIX}.organize-groups`,
       ],
     },
   ],
@@ -400,7 +401,7 @@ app.registerExtension({
 
   getSelectionToolboxCommands(selectedItem) {
     if (isGroup(selectedItem)) {
-      return ["node-organizer.organize-groups"];
+      return [`${COMMAND_PREFIX}.organize-groups`];
     }
     return [];
   },

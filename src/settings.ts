@@ -1,8 +1,11 @@
-export const EXTENSION_NAME = "comfy-node-organizer";
-export const SETTINGS_PREFIX = "Node Organizer";
+export const EXTENSION_NAME = "rurusasu.workflow-graph-organizer";
+export const SETTINGS_PREFIX = "Workflow Graph Organizer";
+export const COMMAND_PREFIX = "workflow-graph-organizer";
+export const UPSTREAM_EXTENSION_NAME = "comfy-node-organizer";
+export const UPSTREAM_COMMAND_PREFIX = "node-organizer";
 export const REPOSITORY_URL =
-  "https://github.com/PBandDev/comfyui-node-organizer";
-export const CURRENT_VERSION = "2.1.1";
+  "https://github.com/rurusasu/comfyui-workflow-graph-organizer";
+export const CURRENT_VERSION = "1.0.0";
 
 export const DEFAULT_ALGORITHM_OPTIONS = [
   "sugiyama",
