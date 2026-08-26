@@ -17,7 +17,17 @@ import {
 export interface GraphGeometrySnapshot {
   readonly nodes: readonly WorkflowNodeRect[];
   readonly groups: readonly GeometryRect[];
+  readonly nodeDisplayMetricsById: Readonly<Record<string, NodeDisplayMetrics>>;
 }
+
+export interface NodeDisplayMetrics {
+  readonly offsetX: number;
+  readonly offsetY: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+type ComparableGraphGeometry = Pick<GraphGeometrySnapshot, "nodes" | "groups">;
 
 export interface OrganizationSummary {
   readonly nodes: number;
@@ -37,8 +47,14 @@ export class StructuredLayoutError extends Error {
   }
 }
 
-export function snapshotGraphGeometry(graph: GraphLike): GraphGeometrySnapshot {
-  const nodes = graph._nodes.map((node) => nodeRect(node));
+export function snapshotGraphGeometry(
+  graph: GraphLike,
+  nodeDisplayMetricsById?: Readonly<Record<string, NodeDisplayMetrics>>,
+): GraphGeometrySnapshot {
+  const metrics = nodeDisplayMetricsById ?? snapshotNodeDisplayMetrics(graph);
+  const nodes = graph._nodes.map((node) =>
+    nodeRect(node, metrics[String(node.id)]),
+  );
   const nodeIds = new Set(nodes.map((node) => node.id));
 
   if (graph.inputNode && !nodeIds.has(String(graph.inputNode.id))) {
@@ -57,12 +73,13 @@ export function snapshotGraphGeometry(graph: GraphLike): GraphGeometrySnapshot {
       width: Number(group.size[0]),
       height: Number(group.size[1]),
     })),
+    nodeDisplayMetricsById: metrics,
   };
 }
 
 export function sameGeometry(
-  left: GraphGeometrySnapshot,
-  right: GraphGeometrySnapshot,
+  left: ComparableGraphGeometry,
+  right: ComparableGraphGeometry,
 ): boolean {
   return sameRects(left.nodes, right.nodes) && sameRects(left.groups, right.groups);
 }
@@ -70,12 +87,17 @@ export function sameGeometry(
 export function applyStructuredGeometry(
   graph: GraphLike,
   geometry: StructuredLayoutResult,
+  nodeDisplayMetricsById?: Readonly<Record<string, NodeDisplayMetrics>>,
 ): void {
   const nodeById = new Map(geometry.nodes.map((node) => [node.id, node]));
   for (const node of graph._nodes) {
     const rect = nodeById.get(String(node.id));
     if (rect) {
-      writeNodeDisplayPosition(node, rect);
+      writeNodeDisplayPosition(
+        node,
+        rect,
+        nodeDisplayMetricsById?.[String(node.id)],
+      );
     }
   }
   if (graph.inputNode) {
@@ -105,7 +127,7 @@ export function restoreGraphGeometry(
   graph: GraphLike,
   original: GraphGeometrySnapshot,
 ): void {
-  applyStructuredGeometry(graph, original);
+  applyStructuredGeometry(graph, original, original.nodeDisplayMetricsById);
 }
 
 export function runWholeWorkflowLayout(
@@ -119,14 +141,14 @@ export function runWholeWorkflowLayout(
 
   try {
     organizeNodes();
-    const organized = snapshotGraphGeometry(graph);
+    const organized = snapshotGraphGeometry(graph, original.nodeDisplayMetricsById);
     const engineChanged = !sameGeometry(original, organized);
     const normalized = normalizeStructuredLayout({ ...organized, structure }, config);
     const violations = validateStructuredLayout({ ...normalized, structure }, config);
     if (violations.length > 0) {
       throw new StructuredLayoutError(violations);
     }
-    applyStructuredGeometry(graph, normalized);
+    applyStructuredGeometry(graph, normalized, original.nodeDisplayMetricsById);
     graph.setDirtyCanvas?.(true, true);
     return summarize(normalized, structure.commentIds.length, engineChanged);
   } catch (error) {
@@ -143,28 +165,16 @@ function nodeRect(node: {
   readonly type: string;
   readonly pos: ArrayLike<number>;
   readonly size: ArrayLike<number>;
-  measure?(out: [number, number, number, number]): void;
-}): WorkflowNodeRect {
-  if (node.measure) {
-    const measured: [number, number, number, number] = [0, 0, 0, 0];
-    node.measure(measured);
-    return {
-      id: String(node.id),
-      type: node.type,
-      x: Number(measured[0]),
-      y: Number(measured[1]),
-      width: Number(measured[2]),
-      height: Number(measured[3]),
-    };
-  }
-
+  readonly boundingRect?: ArrayLike<number>;
+}, metrics?: NodeDisplayMetrics): WorkflowNodeRect {
+  const displayMetrics = metrics ?? displayMetricsForNode(node);
   return {
     id: String(node.id),
     type: node.type,
-    x: Number(node.pos[0]),
-    y: Number(node.pos[1]),
-    width: Number(node.size[0]),
-    height: Number(node.size[1]),
+    x: Number(node.pos[0]) - displayMetrics.offsetX,
+    y: Number(node.pos[1]) - displayMetrics.offsetY,
+    width: displayMetrics.width,
+    height: displayMetrics.height,
   };
 }
 
@@ -174,21 +184,62 @@ function writeNodeDisplayPosition(
     readonly type: string;
     readonly pos: ArrayLike<number>;
     readonly size: ArrayLike<number>;
-    measure?(out: [number, number, number, number]): void;
+    readonly boundingRect?: ArrayLike<number>;
   },
   target: WorkflowNodeRect,
+  metrics?: NodeDisplayMetrics,
 ): void {
-  if (!node.measure) {
-    writePosition(node.pos, target.x, target.y);
-    return;
-  }
-
-  const current = nodeRect(node);
+  const displayMetrics = metrics ?? displayMetricsForNode(node);
   writePosition(
     node.pos,
-    target.x + Number(node.pos[0]) - current.x,
-    target.y + Number(node.pos[1]) - current.y,
+    target.x + displayMetrics.offsetX,
+    target.y + displayMetrics.offsetY,
   );
+}
+
+function snapshotNodeDisplayMetrics(
+  graph: GraphLike,
+): Readonly<Record<string, NodeDisplayMetrics>> {
+  return Object.freeze(
+    Object.fromEntries(
+      graph._nodes.map((node) => [String(node.id), displayMetricsForNode(node)]),
+    ),
+  );
+}
+
+function displayMetricsForNode(node: {
+  readonly pos: ArrayLike<number>;
+  readonly size: ArrayLike<number>;
+  readonly boundingRect?: ArrayLike<number>;
+}): NodeDisplayMetrics {
+  const boundingRect = node.boundingRect;
+  if (
+    boundingRect &&
+    [
+      node.pos[0],
+      node.pos[1],
+      boundingRect[0],
+      boundingRect[1],
+      boundingRect[2],
+      boundingRect[3],
+    ].every(Number.isFinite)
+    && Number(boundingRect[2]) > 0
+    && Number(boundingRect[3]) > 0
+  ) {
+    return Object.freeze({
+      offsetX: Number(node.pos[0]) - Number(boundingRect[0]),
+      offsetY: Number(node.pos[1]) - Number(boundingRect[1]),
+      width: Number(boundingRect[2]),
+      height: Number(boundingRect[3]),
+    });
+  }
+
+  return Object.freeze({
+    offsetX: 0,
+    offsetY: 0,
+    width: Number(node.size[0]),
+    height: Number(node.size[1]),
+  });
 }
 
 function boundaryNodeRect(

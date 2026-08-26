@@ -22,7 +22,8 @@ type TestNode = {
   inputs: { link: number | null; readonly name: string }[];
   outputs: { links: number[] | null; readonly name: string }[];
   flags?: { readonly collapsed: boolean };
-  measure?(this: TestNode, out: [number, number, number, number]): void;
+  boundingRect?: [number, number, number, number];
+  _collapsed_width?: number;
 };
 
 type TestGroup = {
@@ -32,9 +33,20 @@ type TestGroup = {
   size: [number, number];
 };
 
-type TestGraph = Omit<GraphLike, "_nodes" | "_groups" | "links"> & {
+type TestBoundaryNode = {
+  id: number;
+  pos: [number, number];
+  size: [number, number];
+};
+
+type TestGraph = Omit<
+  GraphLike,
+  "_nodes" | "_groups" | "links" | "inputNode" | "outputNode"
+> & {
   _nodes: TestNode[];
   _groups: TestGroup[];
+  inputNode?: TestBoundaryNode;
+  outputNode?: TestBoundaryNode;
   readonly events: string[];
   readonly links: Map<number, { id: number; origin_id: number; target_id: number }>;
 };
@@ -42,6 +54,8 @@ type TestGraph = Omit<GraphLike, "_nodes" | "_groups" | "links"> & {
 function makeGraph(options?: {
   readonly nodes?: readonly TestNode[];
   readonly groups?: readonly TestGroup[];
+  readonly inputNode?: TestBoundaryNode;
+  readonly outputNode?: TestBoundaryNode;
 }): TestGraph {
   const events: string[] = [];
   const nodes = options?.nodes ?? [
@@ -64,6 +78,9 @@ function makeGraph(options?: {
       ...node,
       pos: [...node.pos] as [number, number],
       size: [...node.size] as [number, number],
+      boundingRect: node.boundingRect
+        ? ([...node.boundingRect] as [number, number, number, number])
+        : undefined,
       widgets: node.widgets.map((widget) => ({ ...widget })),
       inputs: node.inputs.map((input) => ({ ...input })),
       outputs: node.outputs.map((output) => ({
@@ -76,6 +93,20 @@ function makeGraph(options?: {
       pos: [...group.pos] as [number, number],
       size: [...group.size] as [number, number],
     })),
+    inputNode: options?.inputNode
+      ? {
+          ...options.inputNode,
+          pos: [...options.inputNode.pos] as [number, number],
+          size: [...options.inputNode.size] as [number, number],
+        }
+      : undefined,
+    outputNode: options?.outputNode
+      ? {
+          ...options.outputNode,
+          pos: [...options.outputNode.pos] as [number, number],
+          size: [...options.outputNode.size] as [number, number],
+        }
+      : undefined,
     links: new Map([[7, { id: 7, origin_id: 1, target_id: 2 }]]),
     beforeChange: () => events.push("before"),
     afterChange: () => events.push("after"),
@@ -114,7 +145,7 @@ function semanticsOf(graph: TestGraph) {
 }
 
 describe("runWholeWorkflowLayout", () => {
-  it("uses normal-node display geometry for background fitting and preserves its underlying position", () => {
+  it("uses cached normal display geometry and maps display positions back to the underlying position", () => {
     const graph = makeGraph({
       nodes: [
         {
@@ -127,39 +158,38 @@ describe("runWholeWorkflowLayout", () => {
           widgets: [],
           inputs: [],
           outputs: [],
-          measure(out) {
-            out[0] = this.pos[0];
-            out[1] = this.pos[1] - 20;
-            out[2] = 200;
-            out[3] = 130;
-          },
+          boundingRect: [100, 80, 200, 130],
         },
       ],
-      groups: [{ id: 9, title: "Group", pos: [0, 0], size: [500, 400] }],
     });
+    const original = snapshotGraphGeometry(graph);
 
-    expect(snapshotGraphGeometry(graph).nodes).toEqual([
+    expect(original.nodes).toEqual([
       { id: "1", type: "Sampler", x: 100, y: 80, width: 200, height: 130 },
     ]);
+    expect(original.nodeDisplayMetricsById).toEqual({
+      "1": { offsetX: 0, offsetY: 20, width: 200, height: 130 },
+    });
 
-    runWholeWorkflowLayout(
+    applyStructuredGeometry(
       graph,
-      () => {
-        graph.events.push("engine");
-        graph._nodes[0]!.pos = [300, 300];
+      {
+        nodes: [{ id: "1", type: "Sampler", x: 300, y: 280, width: 200, height: 130 }],
+        groups: [],
       },
-      DEFAULT_STRUCTURED_LAYOUT_CONFIG,
+      original.nodeDisplayMetricsById,
     );
-
     expect(graph._nodes[0]!.pos).toEqual([300, 300]);
     expect(graph._nodes[0]!.size).toEqual([200, 110]);
-    expect(graph._groups[0]).toMatchObject({
-      pos: [252, 208],
-      size: [296, 250],
-    });
+
+    graph._nodes[0]!.pos = [900, 900];
+    restoreGraphGeometry(graph, original);
+
+    expect(graph._nodes[0]!.pos).toEqual([100, 100]);
+    expect(graph._nodes[0]!.size).toEqual([200, 110]);
   });
 
-  it("uses collapsed display geometry and restores the underlying position exactly", () => {
+  it("uses original cached collapsed metrics after the engine moves a node without refreshing boundingRect", () => {
     const graph = makeGraph({
       nodes: [
         {
@@ -173,35 +203,79 @@ describe("runWholeWorkflowLayout", () => {
           inputs: [],
           outputs: [],
           flags: { collapsed: true },
-          measure(out) {
-            out[0] = this.pos[0];
-            out[1] = this.pos[1] - 20;
-            out[2] = 150;
-            out[3] = 20;
-          },
+          boundingRect: [50, 60, 260, 20],
+          _collapsed_width: 260,
         },
       ],
+      groups: [{ id: 9, title: "Group", pos: [0, 0], size: [500, 400] }],
     });
     const original = snapshotGraphGeometry(graph);
 
     expect(original.nodes).toEqual([
-      { id: "1", type: "Sampler", x: 50, y: 60, width: 150, height: 20 },
+      { id: "1", type: "Sampler", x: 50, y: 60, width: 260, height: 20 },
     ]);
-
-    applyStructuredGeometry(graph, {
-      nodes: [{ id: "1", type: "Sampler", x: 300, y: 280, width: 150, height: 20 }],
-      groups: [],
+    expect(original.nodeDisplayMetricsById).toEqual({
+      "1": { offsetX: 0, offsetY: 20, width: 260, height: 20 },
     });
+
+    runWholeWorkflowLayout(
+      graph,
+      () => {
+        graph.events.push("engine");
+        graph._nodes[0]!.pos = [300, 300];
+      },
+      DEFAULT_STRUCTURED_LAYOUT_CONFIG,
+    );
+
     expect(graph._nodes[0]!.pos).toEqual([300, 300]);
     expect(graph._nodes[0]!.size).toEqual([400, 300]);
     expect(graph._nodes[0]!.flags).toEqual({ collapsed: true });
+    expect(graph._nodes[0]!._collapsed_width).toBe(260);
+    expect(graph._nodes[0]!.boundingRect).toEqual([50, 60, 260, 20]);
+    expect(graph._groups[0]).toMatchObject({
+      pos: [252, 208],
+      size: [356, 140],
+    });
+  });
 
-    graph._nodes[0]!.pos = [900, 900];
-    restoreGraphGeometry(graph, original);
+  it("keeps raw node and subgraph boundary geometry when cached display bounds are unavailable", () => {
+    const graph = makeGraph({
+      nodes: [
+        {
+          id: 1,
+          type: "Sampler",
+          title: "Sampler",
+          pos: [100, 100],
+          size: [100, 80],
+          mode: 4,
+          widgets: [{ value: "seed" }],
+          inputs: [{ link: 7, name: "model" }],
+          outputs: [{ links: [8], name: "image" }],
+          boundingRect: [0, 0, 0, 0],
+        },
+      ],
+      inputNode: { id: -10, pos: [-300, 0], size: [120, 220] },
+      outputNode: { id: -20, pos: [300, 0], size: [120, 60] },
+    });
 
-    expect(graph._nodes[0]!.pos).toEqual([50, 80]);
-    expect(graph._nodes[0]!.size).toEqual([400, 300]);
-    expect(graph._nodes[0]!.flags).toEqual({ collapsed: true });
+    expect(snapshotGraphGeometry(graph).nodes).toEqual([
+      { id: "1", type: "Sampler", x: 100, y: 100, width: 100, height: 80 },
+      { id: "-10", type: "SubgraphInput", x: -300, y: 0, width: 120, height: 220 },
+      { id: "-20", type: "SubgraphOutput", x: 300, y: 0, width: 120, height: 60 },
+    ]);
+
+    applyStructuredGeometry(graph, {
+      nodes: [
+        { id: "1", type: "Sampler", x: 150, y: 250, width: 100, height: 80 },
+        { id: "-10", type: "SubgraphInput", x: -100, y: 40, width: 120, height: 220 },
+        { id: "-20", type: "SubgraphOutput", x: 400, y: 60, width: 120, height: 60 },
+      ],
+      groups: [],
+    });
+
+    expect(graph._nodes[0]!.pos).toEqual([150, 250]);
+    expect(graph.inputNode?.pos).toEqual([-100, 40]);
+    expect(graph.outputNode?.pos).toEqual([400, 60]);
   });
 
   it("uses one transaction and renders after a successful structured layout", () => {

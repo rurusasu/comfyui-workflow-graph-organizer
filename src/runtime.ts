@@ -8,6 +8,7 @@ export {
   snapshotGraphGeometry,
   StructuredLayoutError,
   type GraphGeometrySnapshot,
+  type NodeDisplayMetrics,
   type OrganizationSummary,
 } from "./structured-runtime";
 
