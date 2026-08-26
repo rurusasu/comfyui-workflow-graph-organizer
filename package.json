@@ -29,6 +29,7 @@
     "test:coverage": "vitest run --coverage",
     "setup:e2e": "tsx scripts/setup-test-comfy.ts",
     "test:e2e": "playwright test",
+    "capture:documentation-assets": "tsx scripts/capture-documentation-assets.ts",
     "ci:local": "act push --workflows .github/workflows/ci.yaml"
   },
   "keywords": [
@@ -43,6 +44,14 @@
   ],
   "author": "rurusasu",
   "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rurusasu/comfyui-workflow-graph-organizer.git"
+  },
+  "homepage": "https://github.com/rurusasu/comfyui-workflow-graph-organizer#readme",
+  "bugs": {
+    "url": "https://github.com/rurusasu/comfyui-workflow-graph-organizer/issues"
+  },
   "engines": {
     "node": ">=24"
   },

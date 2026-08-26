@@ -18,10 +18,28 @@ body:
       label: ComfyUI frontend/server version
     validations:
       required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and browser
+    validations:
+      required: true
   - type: textarea
     id: steps
     attributes:
       label: Minimal reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
     validations:
       required: true
   - type: textarea

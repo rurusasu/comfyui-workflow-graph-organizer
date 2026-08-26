@@ -26,6 +26,50 @@ fixture in this repository's dedicated `.test-comfy` WebUI.
   error.
 - **Organize Nodes Only**, selected **Organize Group**, title tokens, and the
   `sugiyama`, horizontal, and vertical algorithms.
+- Preserves execution semantics: links, node types, modes, widget values, and
+  connected inputs are not changed by organization. Organizing an already
+  organized graph is idempotent.
+
+## Examples
+
+The checked-in `whole-workflow-layout` fixture is a generic example with a
+nested background, a Markdown comment, and an ungrouped node. The before/after
+images above show the same fixture before and after the primary action.
+
+### Reproduce documentation assets
+
+This procedure is limited to the repository-owned `.test-comfy` WebUI. Do not
+use a personal workflow or a live ComfyUI server. It uses port `8199`; it never
+uses port `8288`.
+
+```bash
+pnpm build
+pnpm setup:e2e
+pnpm capture:documentation-assets
+```
+
+The capture command starts and stops only the dedicated port `8199` lifecycle,
+loads only `tests/fixtures/whole-workflow-layout.json`, and writes:
+
+```text
+Captured assets/workflow-graph-before.png
+Captured assets/workflow-graph-after.png
+```
+
+If `8199` is already running, its existing E2E marker behavior leaves it
+running after capture. The procedure never starts, stops, or contacts `8288`.
+
+CI uploads `tests/screenshots/`, `test-results/`, and `playwright-report/`
+only when a browser test fails.
+
+## Architecture
+
+The pure `src/core.ts` library captures geometry, lays out nodes, normalizes
+backgrounds, ungrouped nodes, and comments, then validates the complete result.
+The ComfyUI adapter boundary owns graph access, commands, menus, settings,
+notifications, undo, and rendering. The structured runtime owns the
+complete-workflow snapshot and transaction: it either commits a valid result or
+rolls back the exact snapshot.
 
 ## Comparison
 
@@ -45,6 +89,10 @@ is not available. After the reviewed GitHub release candidate is published,
 search for `workflow-graph-organizer` in ComfyUI Manager. No Registry URL is
 included until it resolves.
 
+When it is available, use Manager's update control for this node, restart
+ComfyUI, then open **Settings > Workflow Graph Organizer > About** and verify
+the displayed version is `1.0.0` before removing a recoverable prior install.
+
 ### Manual Git installation
 
 From ComfyUI's `custom_nodes` directory, clone the reviewed GitHub repository
@@ -60,6 +108,11 @@ To update, stop ComfyUI, enter that directory, and run:
 git pull --ff-only
 ```
 
+Restart ComfyUI after updating and verify `Version 1.0.0` in
+**Settings > Workflow Graph Organizer > About**. For a release-candidate
+checkout, compare `git rev-parse HEAD` with the commit shown by the matching
+GitHub release before updating.
+
 To uninstall, stop ComfyUI, remove the `workflow-graph-organizer` directory
 from `custom_nodes` with your file manager, then restart ComfyUI.
 
@@ -74,14 +127,32 @@ dependency. Double installation is unsupported: do not install both extensions.
 4. Restart ComfyUI and confirm **Organize Workflow** appears.
 5. Keep a recoverable copy of the original package until verification.
 
-The extension warns when the original organizer is still registered.
+The extension warns when the original organizer is still registered. Verify
+the migration by opening **Settings > Workflow Graph Organizer > About**,
+confirming `Version 1.0.0`, and running **Organize Workflow** on a saved copy
+of a workflow.
 
 ## Usage
 
 Run **Organize Workflow** from the action bar, canvas menu,
 `Extensions > Workflow Graph Organizer`, or `Shift+O`. Edit the shortcut in
 ComfyUI **Settings > Keybinding**. **Organize Nodes Only** keeps the narrower
-node-layout action; select one background for **Organize Group**.
+node-layout action; **Organize Group** works with one or more selected backgrounds/groups.
+
+| Label | Command ID | Scope |
+| --- | --- | --- |
+| Organize Workflow | `workflow-graph-organizer.organize` | Complete workflow |
+| Organize Nodes Only | `workflow-graph-organizer.organize-nodes-only` | Nodes only |
+| Organize Group | `workflow-graph-organizer.organize-groups` | Selected background |
+
+### Results
+
+- **Success:** the node engine changed geometry and complete-workflow
+  validation passed.
+- **No-op:** the node engine made no observable geometry change; backgrounds
+  and comments may still be normalized.
+- **Rollback:** an error or validation failure restores the exact original
+  geometry before the transaction ends.
 
 ### Title tokens
 
@@ -92,8 +163,10 @@ node-layout action; select one background for **Organize Group**.
 | `[2ROW]` through `[9ROW]` | Distribute into that many rows |
 | `[2COL]` through `[9COL]` | Distribute into that many columns |
 
-Tokens are case-insensitive. Nested backgrounds use their own token;
-backgrounds without one use the selected default algorithm.
+Tokens are case-insensitive. For example, a parent titled `Portrait [2COL]`
+uses two columns while a nested `Sampler [HORIZONTAL]` background uses one
+horizontal row. Grid selection is token-driven: a title token selects that
+background's grid; backgrounds without one use the selected default algorithm.
 
 ## Settings
 
@@ -103,12 +176,20 @@ whole-workflow values fall back to these actual defaults.
 | Setting | Default |
 | --- | ---: |
 | Default Layout Algorithm | `sugiyama` |
-| Horizontal Gap / Vertical Gap | `100` / `40` |
-| Group Padding / Disconnected Node Gap | `30` / `150` |
-| Background Padding Top / Right / Bottom / Left | `72` / `48` / `48` / `48` |
-| Root Background Gap / Comment Gap | `24` / `48` |
-| Comment Lane Gap / Ungrouped Cluster Gap | `72` / `24` |
-| Fit to View After Organize / Enable Debug Logging | `false` / `false` |
+| Horizontal Gap | `100` |
+| Vertical Gap | `40` |
+| Group Padding | `30` |
+| Disconnected Node Gap | `150` |
+| Background Padding Top | `72` |
+| Background Padding Right | `48` |
+| Background Padding Bottom | `48` |
+| Background Padding Left | `48` |
+| Root Background Gap | `24` |
+| Comment Gap | `48` |
+| Comment Lane Gap | `72` |
+| Ungrouped Cluster Gap | `24` |
+| Fit to View After Organize | `false` |
+| Enable Debug Logging | `false` |
 
 For example, increase **Root Background Gap** to add space between separately
 packed root backgrounds. Default algorithms are `sugiyama`, `horizontal`, and
@@ -116,11 +197,10 @@ packed root backgrounds. Default algorithms are `sugiyama`, `horizontal`, and
 
 ## Compatibility
 
-The release candidate is browser-tested against repository-pinned ComfyUI
-`v0.18.1` on Linux. Registry metadata requires ComfyUI `>=0.3.0`; this is not
-a claim that every intervening frontend version has been tested. Reports are
-accepted for current Linux, macOS, and Windows ComfyUI installations with a
-minimal workflow and frontend version.
+The verified compatibility envelope is deliberately narrow: repository-pinned
+ComfyUI `v0.18.1`, with a local Darwin run of all 466 Playwright E2E tests.
+Registry metadata requires ComfyUI `>=0.3.0`; that metadata constraint is not
+a claim that other frontend/server versions or operating systems are supported.
 
 ## Troubleshooting
 
@@ -131,6 +211,7 @@ minimal workflow and frontend version.
 | “Workflow normalized” warning | The node engine made no observable geometry change; backgrounds and comments were normalized. |
 | Organization error | Original geometry is restored; report the minimal JSON and browser-console error. |
 | Stale changes | Restart ComfyUI and hard-refresh the browser bundle. |
+| Manager update failure or no reflected update | Restart ComfyUI, hard-refresh the browser, verify `Version 1.0.0` in **Settings > Workflow Graph Organizer > About**, then check Manager's update log before retrying. |
 
 Use the [bug report form](.github/ISSUE_TEMPLATE/bug.yml) or
 [feature request form](.github/ISSUE_TEMPLATE/feature.yml).
@@ -159,7 +240,10 @@ for development and test guidance.
 The existing version is `1.0.0` in `package.json` and `pyproject.toml`. GitHub
 tags use `workflow-graph-organizer-v<version>` to avoid upstream tag collisions.
 The manual workflow runs only from reviewed `main`, verifies all gates, creates
-that prefixed tag and GitHub release, then publishes the same checkout.
+that prefixed tag and GitHub release, then publishes the same checkout. On a
+retry, it observes the exact Registry version and node metadata: an exact
+active or pending match skips publication; an absent version publishes; a
+flagged, deleted, banned, or mismatched record fails for review.
 
 The Comfy Registry node and scoped npm package are not published. There is no
 npm publication step and no Registry or npm link until those destinations

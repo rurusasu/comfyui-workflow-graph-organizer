@@ -14,6 +14,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: e2eConfig.comfyUrl,
+    screenshot: "only-on-failure",
     trace: "on-first-retry",
     viewport: { width: 1600, height: 1000 },
   },

@@ -5,6 +5,10 @@ ComfyUI Workflow Graph Organizer is an independently maintained fork of
 It retains upstream history, copyright notices, and AGPL-3.0. Upstream does
 not maintain or endorse this fork.
 
+The configured remotes are `origin` for
+`rurusasu/comfyui-workflow-graph-organizer` and `upstream` for
+`PBandDev/comfyui-node-organizer`.
+
 ## Material differences
 
 - Complete-workflow normalization handles backgrounds, comments, and ungrouped
@@ -25,3 +29,5 @@ pnpm typecheck && pnpm test && pnpm build && pnpm test:e2e
 ```
 
 Review and test the synchronization branch before merging it into `main`.
+Resolve product-identity, public-documentation, and release-workflow conflicts
+in favor of this fork's documented behavior; do not overwrite them blindly.

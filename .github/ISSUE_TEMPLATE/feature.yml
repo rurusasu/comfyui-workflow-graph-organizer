@@ -16,6 +16,18 @@ body:
     validations:
       required: true
   - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: State observable behavior and a minimal workflow example.
+    validations:
+      required: true
+  - type: textarea
     id: alternatives
     attributes:
       label: Alternatives considered
+  - type: textarea
+    id: scope
+    attributes:
+      label: Out of scope
+      description: Identify behavior this proposal should not add.
