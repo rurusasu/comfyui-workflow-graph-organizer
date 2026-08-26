@@ -56,7 +56,7 @@ test.describe("Token Layout", () => {
       const appObj = w.app as Record<string, unknown>;
       const em = appObj.extensionManager as Record<string, unknown>;
       const command = em.command as { execute: (id: string) => void };
-      command.execute("node-organizer.organize-workflow");
+      command.execute("workflow-graph-organizer.organize-workflow");
     });
     await page.waitForTimeout(1000);
 

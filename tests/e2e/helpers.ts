@@ -1,5 +1,5 @@
 /**
- * E2E test helpers for ComfyUI Node Organizer.
+ * E2E test helpers for ComfyUI Workflow Graph Organizer.
  *
  * Provides typed extraction of graph state, layout-quality invariant
  * assertions, and convenience wrappers for triggering the organizer
@@ -204,7 +204,7 @@ export async function triggerOrganize(page: Page): Promise<void> {
     const appObj = w.app as Record<string, unknown>;
     const em = appObj.extensionManager as Record<string, unknown>;
     const command = em.command as { execute: (id: string) => void };
-    command.execute("node-organizer.organize-workflow");
+    command.execute("workflow-graph-organizer.organize-workflow");
   });
 
   // Wait for layout to complete — positions should change (or stabilize for empty graphs)
@@ -345,7 +345,7 @@ export async function triggerOrganizeGroup(
     // Execute the organize groups command
     const em = appObj.extensionManager as Record<string, unknown>;
     const command = em.command as { execute: (id: string) => void };
-    command.execute("node-organizer.organize-groups");
+    command.execute("workflow-graph-organizer.organize-groups");
   }, groupTitle);
 
   // Allow layout to complete
@@ -1032,4 +1032,3 @@ async function waitForViewportToStabilize(
     await page.waitForTimeout(100);
   }
 }
-

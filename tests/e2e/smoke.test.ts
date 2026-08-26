@@ -29,12 +29,14 @@ test.describe("Smoke tests", () => {
       };
       return {
         hasOrganizeWorkflow: commands.some(
-          (c) => c.id === "node-organizer.organize-workflow",
+          (c) => c.id === "workflow-graph-organizer.organize-workflow",
         ),
         hasOrganizeGroups: commands.some(
-          (c) => c.id === "node-organizer.organize-groups",
+          (c) => c.id === "workflow-graph-organizer.organize-groups",
         ),
-        defaultAlgorithm: setting.get<string>("Node Organizer.Default Algorithm"),
+        defaultAlgorithm: setting.get<string>(
+          "Workflow Graph Organizer.Default Algorithm",
+        ),
       };
     });
     expect(extensionState.hasOrganizeWorkflow).toBe(true);

@@ -149,7 +149,7 @@ run(
 );
 
 // Step 4: Symlink extension into custom_nodes
-const symlinkTarget = resolve(customNodesDir, "comfy-node-organizer");
+const symlinkTarget = resolve(customNodesDir, "workflow-graph-organizer");
 if (existsSync(symlinkTarget)) {
   try {
     const linkDest = readlinkSync(symlinkTarget);

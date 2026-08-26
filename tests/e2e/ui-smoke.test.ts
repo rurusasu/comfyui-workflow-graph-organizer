@@ -123,12 +123,12 @@ test.describe("UI smoke", () => {
 });
 
 test.describe("Settings panel", () => {
-  async function openNodeOrganizerSettings(page: import("@playwright/test").Page): Promise<void> {
+  async function openWorkflowGraphOrganizerSettings(page: import("@playwright/test").Page): Promise<void> {
     // The sidebar settings button includes the keyboard shortcut in its label
     await page.getByRole("button", { name: /Settings \(Ctrl/ }).click();
     await page.waitForTimeout(500);
     // Navigate to our extension's settings section
-    await page.getByText("Node Organizer", { exact: true }).click();
+    await page.getByText("Workflow Graph Organizer", { exact: true }).click();
     await page.waitForTimeout(500);
   }
 
@@ -137,15 +137,15 @@ test.describe("Settings panel", () => {
     await waitForComfyUI(page);
   });
 
-  test("Node Organizer appears in settings sidebar", async ({ page }) => {
+  test("Workflow Graph Organizer appears in settings sidebar", async ({ page }) => {
     await page.getByRole("button", { name: /Settings \(Ctrl/ }).click();
     await expect(
-      page.getByText("Node Organizer", { exact: true }),
+      page.getByText("Workflow Graph Organizer", { exact: true }),
     ).toBeVisible();
   });
 
   test("settings panel shows About section with version and homepage", async ({ page }) => {
-    await openNodeOrganizerSettings(page);
+    await openWorkflowGraphOrganizerSettings(page);
     await expect(
       page.getByText(`Version ${packageVersion.version}`),
     ).toBeVisible();
@@ -153,7 +153,7 @@ test.describe("Settings panel", () => {
   });
 
   test("settings panel shows Layout section with sliders", async ({ page }) => {
-    await openNodeOrganizerSettings(page);
+    await openWorkflowGraphOrganizerSettings(page);
     await expect(page.getByText("Horizontal Gap")).toBeVisible();
     await expect(page.getByText("Vertical Gap")).toBeVisible();
     await expect(page.getByText("Group Padding")).toBeVisible();
@@ -161,7 +161,7 @@ test.describe("Settings panel", () => {
   });
 
   test("settings panel shows Behavior and Keybindings sections", async ({ page }) => {
-    await openNodeOrganizerSettings(page);
+    await openWorkflowGraphOrganizerSettings(page);
     await expect(
       page.getByText("Fit to View After Organize"),
     ).toBeVisible();
@@ -169,7 +169,7 @@ test.describe("Settings panel", () => {
   });
 
   test("settings sections appear in correct order", async ({ page }) => {
-    await openNodeOrganizerSettings(page);
+    await openWorkflowGraphOrganizerSettings(page);
 
     // Collect all visible text and check the relative order of section headings
     const allText = await page.locator("body").innerText();
