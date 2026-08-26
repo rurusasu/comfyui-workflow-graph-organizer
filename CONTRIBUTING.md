@@ -27,6 +27,21 @@ because ComfyUI loads `dist/`. Use checked-in fixtures in `tests/fixtures/`.
 E2E evidence must use the dedicated `.test-comfy` WebUI, never a personal
 workflow or separate instance.
 
+## Test-driven development
+
+Use test-driven development for behavior changes and bug fixes:
+
+1. Add the smallest test that demonstrates the missing behavior and confirm it
+   fails for the expected reason.
+2. Implement the minimal change that makes the test pass.
+3. Refactor only while the focused and full suites remain green.
+
+Geometry invariants require property testing with fast-check. Extend
+`tests/unit/property.test.ts` when a change affects finite coordinates,
+containment, padding, overlap, idempotence, or rollback behavior. Add focused
+unit tests for deterministic examples and Playwright coverage for visible
+ComfyUI integration behavior.
+
 ## Issues and pull requests
 
 Use the issue forms with a minimized workflow and expected/actual behavior.
@@ -39,3 +54,15 @@ review of the corresponding release behavior.
 Keep pull requests focused, include behavior tests, preserve AGPL-3.0 notices
 and upstream attribution, and do not combine upstream synchronization with
 product work. By contributing, you agree to AGPL-3.0 licensing.
+
+## Pre-PR checklist
+
+- [ ] I recorded the failing focused test before implementation and its passing
+  result afterward.
+- [ ] I added or updated fast-check property tests when an invariant changed.
+- [ ] I ran `pnpm typecheck`, `pnpm test`, `pnpm build`, and `pnpm test:lib`.
+- [ ] I ran `pnpm test:e2e` for frontend or ComfyUI integration changes.
+- [ ] I updated public documentation, screenshots, and changelog entries when
+  user-visible behavior changed.
+- [ ] I reviewed compatibility, execution-semantics, release, security, and
+  upstream-sync impact.

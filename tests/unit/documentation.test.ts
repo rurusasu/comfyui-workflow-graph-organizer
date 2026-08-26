@@ -4,10 +4,34 @@ import { describe, expect, it } from "vitest";
 const readPublicFile = (path: string): string => readFileSync(path, "utf8");
 
 describe("public documentation", () => {
+  it("uses unique discoverability metadata for the public package", () => {
+    const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+      keywords?: unknown;
+    };
+    expect(packageJson.keywords).toEqual([
+      "comfyui",
+      "custom-node",
+      "workflow",
+      "graph-layout",
+      "organizer",
+      "extension",
+    ]);
+    expect(new Set(packageJson.keywords as string[]).size).toBe(
+      (packageJson.keywords as string[]).length,
+    );
+  });
+
   it("makes the README a complete release artifact", () => {
     const readme = readPublicFile("README.md");
 
     expect(readme).toContain("# ComfyUI Workflow Graph Organizer");
+    const opening = readme.slice(0, readme.indexOf("## Features"));
+    expect(opening).toMatch(
+      /Organizes the geometry of a complete ComfyUI workflow graph without changing\s+execution semantics\./,
+    );
+    expect(opening).toMatch(
+      /Nodes, nested backgrounds, Markdown comments, and\s+ungrouped nodes are arranged in one native undo transaction\./,
+    );
     for (const heading of [
       "## Features",
       "## Examples",
@@ -39,7 +63,6 @@ describe("public documentation", () => {
     expect(readme).toMatch(/preserves execution semantics/i);
     expect(readme).toMatch(/idempotent/i);
     expect(readme).toMatch(/success.*no-op.*rollback/is);
-    expect(readme).toMatch(/restart ComfyUI.*hard-refresh the browser/i);
     expect(readme).toContain("one or more selected backgrounds/groups");
     expect(readme).toMatch(/nested.*\[HORIZONTAL\]/is);
     expect(readme).toContain("Portrait [2COL]");
@@ -56,27 +79,45 @@ describe("public documentation", () => {
       expect(readme).toContain(action);
     }
 
-    for (const setting of [
-      "Default Layout Algorithm",
-      "Horizontal Gap",
-      "Vertical Gap",
-      "Group Padding",
-      "Disconnected Node Gap",
-      "Background Padding Top",
-      "Background Padding Right",
-      "Background Padding Bottom",
-      "Background Padding Left",
-      "Root Background Gap",
-      "Comment Gap",
-      "Comment Lane Gap",
-      "Ungrouped Cluster Gap",
-      "Fit to View After Organize",
-      "Enable Debug Logging",
+    for (const [setting, defaultValue] of [
+      ["Default Layout Algorithm", "sugiyama"],
+      ["Horizontal Gap", "100"],
+      ["Vertical Gap", "40"],
+      ["Group Padding", "30"],
+      ["Disconnected Node Gap", "150"],
+      ["Background Padding Top", "72"],
+      ["Background Padding Right", "48"],
+      ["Background Padding Bottom", "48"],
+      ["Background Padding Left", "48"],
+      ["Root Background Gap", "24"],
+      ["Comment Gap", "48"],
+      ["Comment Lane Gap", "72"],
+      ["Ungrouped Cluster Gap", "24"],
+      ["Fit to View After Organize", "false"],
+      ["Enable Debug Logging", "false"],
     ]) {
-      expect(readme).toContain(setting);
+      expect(readme).toContain(`| ${setting} | \`${defaultValue}\` |`);
     }
     expect(readme).not.toMatch(/MiniMax|H3|video|Docker|VM/i);
     expect(readme).toMatch(/Manager update.*failure/i);
+
+    const managerUpdate = readme.slice(
+      readme.indexOf("### ComfyUI Manager / Registry"),
+      readme.indexOf("### Manual Git installation"),
+    );
+    expect(managerUpdate).toMatch(/Manager.*update/i);
+    expect(managerUpdate).toMatch(/restart\s+ComfyUI/i);
+    expect(managerUpdate).toMatch(/hard-refresh the browser/i);
+    expect(managerUpdate).toMatch(/Version\s+1\.0\.0/);
+
+    const manualUpdate = readme.slice(
+      readme.indexOf("### Manual Git installation"),
+      readme.indexOf("## Migration"),
+    );
+    expect(manualUpdate).toContain("git pull --ff-only");
+    expect(manualUpdate).toMatch(/restart\s+ComfyUI/i);
+    expect(manualUpdate).toMatch(/hard-refresh the browser/i);
+    expect(manualUpdate).toMatch(/Version\s+1\.0\.0/);
   });
 
   it("keeps release metadata, recovery, and failure artifacts complete", () => {
@@ -90,6 +131,7 @@ describe("public documentation", () => {
     const publish = readPublicFile(".github/workflows/publish_action.yaml");
     const capture = readPublicFile("scripts/capture-documentation-assets.ts");
     const playwrightConfig = readPublicFile("playwright.config.ts");
+    const globalSetup = readPublicFile("tests/e2e/global-setup.ts");
 
     expect(packageJson.repository).toEqual({
       type: "git",
@@ -142,6 +184,12 @@ describe("public documentation", () => {
     expect(capture).toMatch(
       /await Promise\.resolve\(\s*app\.extensionManager\.command\.execute\(/,
     );
+    expect(capture).toContain("withExclusiveCaptureRuntime");
+    expect(capture).toContain("prepareStableCanvas");
+    expect(capture).toContain("hideTransientNotifications");
+    expect(capture).toContain("assertCaptureOrigin");
+    expect(capture).toContain('route.abort("blockedbyclient")');
+    expect(globalSetup).toContain('redirect: "error"');
     expect(publish).toContain('DisplayName = "ComfyUI Workflow Graph Organizer"');
     expect(publish).toContain('PublisherId = "rurusasu"');
   });
@@ -155,9 +203,8 @@ describe("public documentation", () => {
 
     expect(captureSection).toContain("pnpm build\npnpm setup:e2e\npnpm capture:documentation-assets");
     expect(captureSection).not.toContain("comfy --skip-prompt");
-    expect(captureSection).toMatch(/starts and stops only.*8199/i);
-    expect(captureSection).toContain("If `8199` is already running");
-    expect(captureSection).toMatch(/leaves it\s+running/i);
+    expect(captureSection).toMatch(/fails closed.*8199.*occupied/i);
+    expect(captureSection).toMatch(/never.*reuses.*8199/is);
     expect(captureSection).toMatch(/never.*8288/i);
   });
 
@@ -175,5 +222,47 @@ describe("public documentation", () => {
     ]) {
       expect(existsSync(path), `Missing public artifact: ${path}`).toBe(true);
     }
+  });
+
+  it("keeps support documents and contribution forms individually reviewable", () => {
+    const changelog = readPublicFile("CHANGELOG.md");
+    const contributing = readPublicFile("CONTRIBUTING.md");
+    const security = readPublicFile("SECURITY.md");
+    const upstream = readPublicFile("UPSTREAM.md");
+    const bugForm = readPublicFile(".github/ISSUE_TEMPLATE/bug.yml");
+    const featureForm = readPublicFile(".github/ISSUE_TEMPLATE/feature.yml");
+    const pullRequest = readPublicFile(".github/pull_request_template.md");
+
+    expect(changelog).toContain("## [Unreleased]");
+    expect(changelog).toContain("## [1.0.0] - pending");
+    expect(changelog).toContain("### Added");
+    expect(changelog).toMatch(/Registry and scoped npm package are not published/i);
+    expect(contributing).toContain("Use Node `24`");
+    expect(contributing).toContain("dedicated `.test-comfy` WebUI");
+    expect(contributing).toContain("## Test-driven development");
+    expect(contributing).toContain("tests/unit/property.test.ts");
+    expect(contributing).toMatch(/fast-check/i);
+    expect(contributing).toContain("## Pre-PR checklist");
+    expect(security).toContain(
+      "https://github.com/rurusasu/comfyui-workflow-graph-organizer/security/advisories/new",
+    );
+    expect(security).toMatch(/Do not open a public issue/i);
+    expect(security).toMatch(/most recent published release/i);
+    expect(upstream).toContain("git fetch upstream --tags");
+    expect(upstream).toContain("git switch -c sync/upstream-2026-08-27 main");
+    expect(upstream).toContain("git merge --no-ff upstream/main");
+    expect(upstream).toMatch(/conflicts\s+in favor of this fork/i);
+    expect(bugForm).toContain("id: comfyui-version");
+    expect(bugForm).toContain("id: workflow");
+    expect(bugForm).toMatch(
+      /id: logs[\s\S]*?validations:\s*\n\s+required: true/,
+    );
+    expect(featureForm).toContain("id: acceptance");
+    expect(featureForm).toContain("id: scope");
+    expect(pullRequest).toContain("## Compatibility and release impact");
+    expect(pullRequest).toContain("## Screenshots");
+    expect(pullRequest).toMatch(/execution semantics/i);
+    expect(pullRequest).toMatch(/upstream synchronization/i);
+    expect(pullRequest).toContain("`pnpm test:e2e` when frontend behavior changes");
   });
 });

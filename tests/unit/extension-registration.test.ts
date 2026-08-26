@@ -155,7 +155,15 @@ describe("whole-workflow extension registration", () => {
   });
 
   it("routes the primary action through the whole-workflow runtime without nesting commands", async () => {
-    const registered = await register();
+    const registered = await register({
+      result: {
+        nodes: 3,
+        groups: 2,
+        comments: 1,
+        violations: 0,
+        engineChanged: true,
+      },
+    });
     try {
       primaryCommand(registered.extension)();
       expect(registered.runWholeWorkflowLayout).toHaveBeenCalledOnce();
@@ -164,7 +172,27 @@ describe("whole-workflow extension registration", () => {
         expect.objectContaining({ severity: "success" }),
       ]);
       expect(registered.toasts[0]?.detail).toBe(
-        "Organized 3 nodes, 1 backgrounds, and 1 comments.",
+        "Organized 3 nodes, 2 backgrounds, and 1 comment.",
+      );
+    } finally {
+      registered.restore();
+    }
+  });
+
+  it("uses singular nouns in a successful whole-workflow toast", async () => {
+    const registered = await register({
+      result: {
+        nodes: 1,
+        groups: 1,
+        comments: 1,
+        violations: 0,
+        engineChanged: true,
+      },
+    });
+    try {
+      primaryCommand(registered.extension)();
+      expect(registered.toasts[0]?.detail).toBe(
+        "Organized 1 node, 1 background, and 1 comment.",
       );
     } finally {
       registered.restore();

@@ -16,7 +16,7 @@ const comfyBin = isWindows
 
 async function isComfyRunning(): Promise<boolean> {
   try {
-    const response = await fetch(e2eConfig.comfyUrl);
+    const response = await fetch(e2eConfig.comfyUrl, { redirect: "error" });
     return response.ok;
   } catch {
     return false;

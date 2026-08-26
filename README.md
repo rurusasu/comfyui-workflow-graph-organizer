@@ -4,8 +4,11 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/rurusasu/comfyui-workflow-graph-organizer?display_name=tag)](https://github.com/rurusasu/comfyui-workflow-graph-organizer/releases)
 
-Organize a complete ComfyUI workflow graph: nodes, nested backgrounds, Markdown
-comments, and ungrouped nodes. This is an independently maintained AGPL-3.0
+Organizes the geometry of a complete ComfyUI workflow graph without changing
+execution semantics. Nodes, nested backgrounds, Markdown comments, and
+ungrouped nodes are arranged in one native undo transaction. Links, node types,
+modes, widget values, and connected inputs are preserved; re-running an already
+organized graph is idempotent. This is an independently maintained AGPL-3.0
 fork of [ComfyUI Node Organizer](https://github.com/PBandDev/comfyui-node-organizer).
 
 <p align="center">
@@ -36,41 +39,6 @@ The checked-in `whole-workflow-layout` fixture is a generic example with a
 nested background, a Markdown comment, and an ungrouped node. The before/after
 images above show the same fixture before and after the primary action.
 
-### Reproduce documentation assets
-
-This procedure is limited to the repository-owned `.test-comfy` WebUI. Do not
-use a personal workflow or a live ComfyUI server. It uses port `8199`; it never
-uses port `8288`.
-
-```bash
-pnpm build
-pnpm setup:e2e
-pnpm capture:documentation-assets
-```
-
-The capture command starts and stops only the dedicated port `8199` lifecycle,
-loads only `tests/fixtures/whole-workflow-layout.json`, and writes:
-
-```text
-Captured assets/workflow-graph-before.png
-Captured assets/workflow-graph-after.png
-```
-
-If `8199` is already running, its existing E2E marker behavior leaves it
-running after capture. The procedure never starts, stops, or contacts `8288`.
-
-CI uploads `tests/screenshots/`, `test-results/`, and `playwright-report/`
-only when a browser test fails.
-
-## Architecture
-
-The pure `src/core.ts` library captures geometry, lays out nodes, normalizes
-backgrounds, ungrouped nodes, and comments, then validates the complete result.
-The ComfyUI adapter boundary owns graph access, commands, menus, settings,
-notifications, undo, and rendering. The structured runtime owns the
-complete-workflow snapshot and transaction: it either commits a valid result or
-rolls back the exact snapshot.
-
 ## Comparison
 
 | Capability | This fork | Upstream Node Organizer | Workflow-file/sidebar managers |
@@ -89,9 +57,10 @@ is not available. After the reviewed GitHub release candidate is published,
 search for `workflow-graph-organizer` in ComfyUI Manager. No Registry URL is
 included until it resolves.
 
-When it is available, use Manager's update control for this node, restart
-ComfyUI, then open **Settings > Workflow Graph Organizer > About** and verify
-the displayed version is `1.0.0` before removing a recoverable prior install.
+When it is available, use Manager's update control for this node. Restart
+ComfyUI, hard-refresh the browser, then open **Settings > Workflow Graph
+Organizer > About** and verify the displayed `Version 1.0.0` before removing a
+recoverable prior install.
 
 ### Manual Git installation
 
@@ -108,10 +77,10 @@ To update, stop ComfyUI, enter that directory, and run:
 git pull --ff-only
 ```
 
-Restart ComfyUI after updating and verify `Version 1.0.0` in
-**Settings > Workflow Graph Organizer > About**. For a release-candidate
-checkout, compare `git rev-parse HEAD` with the commit shown by the matching
-GitHub release before updating.
+Restart ComfyUI after updating, hard-refresh the browser, and verify `Version
+1.0.0` in **Settings > Workflow Graph Organizer > About**. For a
+release-candidate checkout, compare `git rev-parse HEAD` with the commit shown
+by the matching GitHub release before updating.
 
 To uninstall, stop ComfyUI, remove the `workflow-graph-organizer` directory
 from `custom_nodes` with your file manager, then restart ComfyUI.
@@ -143,7 +112,7 @@ node-layout action; **Organize Group** works with one or more selected backgroun
 | --- | --- | --- |
 | Organize Workflow | `workflow-graph-organizer.organize` | Complete workflow |
 | Organize Nodes Only | `workflow-graph-organizer.organize-nodes-only` | Nodes only |
-| Organize Group | `workflow-graph-organizer.organize-groups` | Selected background |
+| Organize Group | `workflow-graph-organizer.organize-groups` | Selected backgrounds/groups |
 
 ### Results
 
@@ -232,8 +201,44 @@ pnpm setup:e2e
 pnpm test:e2e
 ```
 
+### Reproduce documentation assets
+
+This procedure is limited to the repository-owned `.test-comfy` WebUI. Do not
+use a personal workflow or a live ComfyUI server. It uses port `8199`; it never
+uses port `8288`.
+
+```bash
+pnpm build
+pnpm setup:e2e
+pnpm capture:documentation-assets
+```
+
+The capture command starts and stops only a freshly spawned dedicated port
+`8199` lifecycle, loads only `tests/fixtures/whole-workflow-layout.json`, hides
+dynamic canvas statistics, and writes:
+
+```text
+Captured assets/workflow-graph-before.png
+Captured assets/workflow-graph-after.png
+```
+
+Capture fails closed when `8199` is occupied or reused; it never reuses an
+existing `8199` server. The procedure never starts, stops, or contacts `8288`.
+
+CI uploads `tests/screenshots/`, `test-results/`, and `playwright-report/`
+only when a browser test fails.
+
 `src/core.ts` is the pure library entrypoint. See [CONTRIBUTING.md](CONTRIBUTING.md)
 for development and test guidance.
+
+## Architecture
+
+The pure `src/core.ts` library captures geometry, lays out nodes, normalizes
+backgrounds, ungrouped nodes, and comments, then validates the complete result.
+The ComfyUI adapter boundary owns graph access, commands, menus, settings,
+notifications, undo, and rendering. The structured runtime owns the
+complete-workflow snapshot and transaction: it either commits a valid result or
+rolls back the exact snapshot.
 
 ## Versioning
 

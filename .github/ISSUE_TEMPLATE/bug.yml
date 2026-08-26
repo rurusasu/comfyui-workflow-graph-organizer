@@ -53,3 +53,6 @@ body:
     id: logs
     attributes:
       label: Browser-console output
+      description: Paste the relevant output, or state explicitly that no error was emitted.
+    validations:
+      required: true

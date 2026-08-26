@@ -34,12 +34,10 @@
   },
   "keywords": [
     "comfyui",
-    "custom node",
-    "custom",
-    "node",
-    "extension",
+    "custom-node",
+    "workflow",
+    "graph-layout",
     "organizer",
-    "node",
     "extension"
   ],
   "author": "rurusasu",

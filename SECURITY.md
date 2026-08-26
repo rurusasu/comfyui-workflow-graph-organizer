@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Do not open a public issue for a suspected vulnerability. Use the
-[GitHub Security Advisories page](https://github.com/rurusasu/comfyui-workflow-graph-organizer/security)
+[private GitHub Security Advisory form](https://github.com/rurusasu/comfyui-workflow-graph-organizer/security/advisories/new)
 to report it privately. Include affected versions, reproduction steps, impact,
 and any suggested mitigation.
 

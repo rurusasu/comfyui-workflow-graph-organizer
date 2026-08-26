@@ -120,6 +120,10 @@ function showToast(severity: ToastSeverity, summary: string, detail: string): vo
   app.extensionManager?.toast?.add({ severity, summary, detail });
 }
 
+function countLabel(count: number, singular: string): string {
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
 function upstreamOrganizerIsRegistered(): boolean {
   const appRecord = app as unknown as {
     extensions?: Iterable<{ name?: unknown }>;
@@ -240,10 +244,13 @@ function organizeWorkflow(): void {
     fitCurrentGraphToView(graph);
 
     if (summary.engineChanged) {
+      const nodes = countLabel(summary.nodes, "node");
+      const backgrounds = countLabel(summary.groups, "background");
+      const comments = countLabel(summary.comments, "comment");
       showToast(
         "success",
         "Workflow organized",
-        `Organized ${summary.nodes} nodes, ${summary.groups} backgrounds, and ${summary.comments} comments.`,
+        `Organized ${nodes}, ${backgrounds}, and ${comments}.`,
       );
     } else {
       showToast(

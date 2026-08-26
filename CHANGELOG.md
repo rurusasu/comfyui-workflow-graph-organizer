@@ -3,13 +3,13 @@
 All notable changes to ComfyUI Workflow Graph Organizer are documented here.
 Entries use the Keep a Changelog categories and semantic product versions.
 
-## Unreleased
+## [Unreleased]
 
 ### Changed
 
 - No unreleased product behavior is published from this branch.
 
-## 1.0.0 — pending GitHub release candidate
+## [1.0.0] - pending
 
 ### Added
 
