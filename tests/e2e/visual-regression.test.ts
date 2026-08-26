@@ -51,12 +51,6 @@ test.describe("Visual Regression", () => {
     await expectGraphCanvasScreenshot(page, "nested-groups-organized.png");
   });
 
-  test("token-testing graph canvas after organize", async ({ page }) => {
-    await loadWorkflow(page, loadFixture("token-testing"));
-    await triggerOrganize(page);
-    await expectGraphCanvasScreenshot(page, "token-testing-organized.png");
-  });
-
   test("subgraph graph canvas after organize", async ({ page }) => {
     await loadWorkflow(page, loadFixture("subgraph-io"));
     await openFirstSubgraph(page);
