@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import fc from "fast-check";
 import { createSugiyamaAlgorithm } from "../../src/layout/algorithms/sugiyama";
 import { layoutWithGroups } from "../../src/layout/framework";
+import {
+  captureWorkflowStructure,
+  DEFAULT_STRUCTURED_LAYOUT_CONFIG,
+  normalizeStructuredLayout,
+  validateStructuredLayout,
+} from "../../src/structured-layout";
 import type {
   LayoutEdge,
   LayoutGroup,
@@ -395,6 +401,120 @@ describe("property-based token layout invariants", () => {
         },
       ),
       { numRuns: 75 },
+    );
+  });
+});
+
+function structuredWorkflowArbitrary(): fc.Arbitrary<{
+  nodes: Array<{
+    id: string;
+    type: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }>;
+  groups: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }>;
+}> {
+  return fc.record({
+    originX: fc.integer({ min: -1_000, max: 1_000 }),
+    originY: fc.integer({ min: -1_000, max: 1_000 }),
+    memberWidth: fc.integer({ min: 20, max: 100 }),
+    memberHeight: fc.integer({ min: 20, max: 100 }),
+    looseWidth: fc.integer({ min: 20, max: 100 }),
+    looseHeight: fc.integer({ min: 20, max: 100 }),
+    looseDeltaX: fc.integer({ min: 150, max: 300 }),
+    looseDeltaY: fc.integer({ min: -100, max: 100 }),
+    commentWidth: fc.integer({ min: 20, max: 200 }),
+    commentHeight: fc.integer({ min: 20, max: 120 }),
+  }).map((shape) => {
+    const looseAX = shape.originX + 800;
+    const looseAY = shape.originY + 80;
+    return {
+      nodes: [
+        {
+          id: "member",
+          type: "Sampler",
+          x: shape.originX + 100,
+          y: shape.originY + 100,
+          width: shape.memberWidth,
+          height: shape.memberHeight,
+        },
+        {
+          id: "loose-a",
+          type: "Output",
+          x: looseAX,
+          y: looseAY,
+          width: shape.looseWidth,
+          height: shape.looseHeight,
+        },
+        {
+          id: "loose-b",
+          type: "Output",
+          x: looseAX + shape.looseDeltaX,
+          y: looseAY + shape.looseDeltaY,
+          width: shape.looseWidth,
+          height: shape.looseHeight,
+        },
+        {
+          id: "comment",
+          type: "MarkdownNote",
+          x: shape.originX - 400,
+          y: shape.originY - 200,
+          width: shape.commentWidth,
+          height: shape.commentHeight,
+        },
+      ],
+      groups: [
+        {
+          id: "root",
+          x: shape.originX,
+          y: shape.originY,
+          width: 500,
+          height: 400,
+        },
+      ],
+    };
+  });
+}
+
+describe("property-based structured layout invariants", () => {
+  it("preserves stable IDs, finite geometry, cluster deltas, and idempotence", () => {
+    fc.assert(
+      fc.property(structuredWorkflowArbitrary(), ({ nodes, groups }) => {
+        const structure = captureWorkflowStructure({ nodes, groups });
+        const first = normalizeStructuredLayout(
+          { nodes, groups, structure },
+          DEFAULT_STRUCTURED_LAYOUT_CONFIG,
+        );
+        const second = normalizeStructuredLayout(
+          { ...first, structure },
+          DEFAULT_STRUCTURED_LAYOUT_CONFIG,
+        );
+        const looseA = first.nodes.find((node) => node.id === "loose-a")!;
+        const looseB = first.nodes.find((node) => node.id === "loose-b")!;
+        const originalLooseA = nodes.find((node) => node.id === "loose-a")!;
+        const originalLooseB = nodes.find((node) => node.id === "loose-b")!;
+
+        expect(first.nodes.map((node) => node.id)).toEqual(nodes.map((node) => node.id));
+        expect(first.groups.map((group) => group.id)).toEqual(groups.map((group) => group.id));
+        expect(
+          [...first.nodes, ...first.groups].every((item) =>
+            [item.x, item.y, item.width, item.height].every(Number.isFinite),
+          ),
+        ).toBe(true);
+        expect(looseB.x - looseA.x).toBe(originalLooseB.x - originalLooseA.x);
+        expect(looseB.y - looseA.y).toBe(originalLooseB.y - originalLooseA.y);
+        expect(validateStructuredLayout({ ...first, structure }, DEFAULT_STRUCTURED_LAYOUT_CONFIG)).toEqual([]);
+        expect(second).toEqual(first);
+      }),
+      { numRuns: 100 },
     );
   });
 });

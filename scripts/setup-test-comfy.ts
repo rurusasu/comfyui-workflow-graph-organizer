@@ -6,10 +6,14 @@ import {
   symlinkSync,
   readlinkSync,
   rmSync,
+  writeFileSync,
 } from "node:fs";
-import { resolve, join } from "node:path";
+import { resolve, join, dirname } from "node:path";
 import { e2eConfig } from "../e2e.config.ts";
-import { extractPinnedWorkflowTemplatesRequirement } from "./setup-test-comfy-helpers";
+import {
+  extractPinnedWorkflowTemplatesRequirement,
+  setComfyManagerNetworkMode,
+} from "./setup-test-comfy-helpers";
 
 const isWindows = process.platform === "win32";
 const projectRoot = resolve(import.meta.dirname, "..");
@@ -17,6 +21,7 @@ const projectRoot = resolve(import.meta.dirname, "..");
 const venvDir = resolve(projectRoot, e2eConfig.venvDir);
 const comfyInstallDir = resolve(projectRoot, e2eConfig.comfyInstallDir);
 const customNodesDir = resolve(projectRoot, e2eConfig.customNodesDir);
+const managerConfigPath = join(comfyInstallDir, "user", "__manager", "config.ini");
 
 const pythonBin = isWindows
   ? join(venvDir, "Scripts", "python.exe")
@@ -25,6 +30,10 @@ const pythonBin = isWindows
 const comfyBin = isWindows
   ? join(venvDir, "Scripts", "comfy.exe")
   : join(venvDir, "bin", "comfy");
+
+const comfyRuntimePython = isWindows
+  ? join(comfyInstallDir, ".venv", "Scripts", "python.exe")
+  : join(comfyInstallDir, ".venv", "bin", "python");
 
 function tryExec(cmd: string): string | null {
   try {
@@ -61,6 +70,30 @@ function installComfy(revision: string): void {
   );
 }
 
+function hasHealthyComfyRuntime(): boolean {
+  if (!existsSync(comfyRuntimePython)) return false;
+  try {
+    execSync(`"${comfyRuntimePython}" -c "import torch; import OpenGL.contextdata"`, {
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeBrokenComfyRuntime(): void {
+  const runtimeDir = resolve(comfyInstallDir, ".venv");
+  const dedicatedTestRoot = resolve(projectRoot, e2eConfig.testComfyDir);
+  if (!runtimeDir.startsWith(`${dedicatedTestRoot}/`)) {
+    throw new Error(`Refusing to remove runtime outside dedicated E2E setup: ${runtimeDir}`);
+  }
+  if (existsSync(runtimeDir)) {
+    console.log("[setup] Removing broken dedicated ComfyUI runtime before reinstall...");
+    rmSync(runtimeDir, { recursive: true, force: true });
+  }
+}
+
 function getPinnedWorkflowTemplatesRequirement(): string {
   const requirementsPath = resolve(comfyInstallDir, "requirements.txt");
   if (!existsSync(requirementsPath)) {
@@ -72,6 +105,18 @@ function getPinnedWorkflowTemplatesRequirement(): string {
   return extractPinnedWorkflowTemplatesRequirement(
     readFileSync(requirementsPath, "utf-8"),
   );
+}
+
+function configureDedicatedManager(): void {
+  mkdirSync(dirname(managerConfigPath), { recursive: true });
+  const current = existsSync(managerConfigPath)
+    ? readFileSync(managerConfigPath, "utf-8")
+    : "[default]\n";
+  const configured = setComfyManagerNetworkMode(current);
+  if (configured !== current) {
+    writeFileSync(managerConfigPath, configured, "utf-8");
+  }
+  console.log("[setup] Configured dedicated ComfyUI Manager for local-only E2E operation.");
 }
 
 // Step 1: Create venv (with --seed so pip is available for comfy-cli)
@@ -114,12 +159,12 @@ if (existsSync(join(comfyInstallDir, "main.py"))) {
   const installedRevision = getInstalledComfyRevision();
 
   if (installedRevision === e2eConfig.comfyRevision) {
-    try {
-      execSync(`"${pythonBin}" -c "import torch"`, { stdio: "ignore" });
+    if (hasHealthyComfyRuntime()) {
       console.log(
         `[setup] ComfyUI already pinned at ${e2eConfig.comfyRevision} and dependencies are installed.`,
       );
-    } catch {
+    } else {
+      removeBrokenComfyRuntime();
       installComfy(e2eConfig.comfyRevision);
     }
   } else {
@@ -148,8 +193,10 @@ run(
   `Installing ${workflowTemplatesRequirement}`,
 );
 
+configureDedicatedManager();
+
 // Step 4: Symlink extension into custom_nodes
-const symlinkTarget = resolve(customNodesDir, "comfy-node-organizer");
+const symlinkTarget = resolve(customNodesDir, "workflow-graph-organizer");
 if (existsSync(symlinkTarget)) {
   try {
     const linkDest = readlinkSync(symlinkTarget);

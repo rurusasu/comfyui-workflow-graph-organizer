@@ -36,6 +36,7 @@ interface GraphNode {
   readonly title: string;
   readonly pos: ArrayLike<number>;
   readonly size: ArrayLike<number>;
+  readonly boundingRect?: ArrayLike<number>;
   readonly inputs?: ReadonlyArray<{ link: number | null }>;
   readonly outputs?: ReadonlyArray<{ links: number[] | null }>;
 }
@@ -67,6 +68,8 @@ export interface GraphLike {
   readonly links: Map<number, GraphLink> | Record<number, GraphLink>;
   readonly inputNode?: GraphBoundaryNode;
   readonly outputNode?: GraphBoundaryNode;
+  beforeChange?(): void;
+  afterChange?(): void;
   setDirtyCanvas?(fg: boolean, bg: boolean): void;
 }
 
@@ -184,6 +187,7 @@ export function applyLayoutOutput(
     readonly positions: ReadonlyMap<string, Position>;
     readonly groupBounds: ReadonlyMap<string, GroupBounds>;
   },
+  options: { readonly markDirty?: boolean } = {},
 ): void {
   // Apply node positions
   for (const node of graph._nodes) {
@@ -237,7 +241,7 @@ export function applyLayoutOutput(
   }
 
   // Mark canvas as dirty
-  if (graph.setDirtyCanvas) {
+  if (options.markDirty !== false && graph.setDirtyCanvas) {
     graph.setDirtyCanvas(true, true);
   }
 

@@ -1,5 +1,17 @@
 import { isGroup, type CanvasItem } from "./utils";
 
+export {
+  applyStructuredGeometry,
+  restoreGraphGeometry,
+  runWholeWorkflowLayout,
+  sameGeometry,
+  snapshotGraphGeometry,
+  StructuredLayoutError,
+  type GraphGeometrySnapshot,
+  type NodeDisplayMetrics,
+  type OrganizationSummary,
+} from "./structured-runtime";
+
 export interface CanvasLike<TGraph = unknown> {
   readonly graph: TGraph | null;
   readonly getCurrentGraph?: () => TGraph | null;

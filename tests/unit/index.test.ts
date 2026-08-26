@@ -169,12 +169,12 @@ describe("settings constants", () => {
     pyproject.match(/^current_version = "(.+)"$/m)?.[1] ?? null;
 
   it("has a valid extension name", () => {
-    expect(EXTENSION_NAME).toBe("comfy-node-organizer");
+    expect(EXTENSION_NAME).toBe("rurusasu.workflow-graph-organizer");
   });
 
   it("has a valid repository URL", () => {
     expect(REPOSITORY_URL).toContain("github.com");
-    expect(REPOSITORY_URL).toContain("comfyui-node-organizer");
+    expect(REPOSITORY_URL).toContain("comfyui-workflow-graph-organizer");
   });
 
   it("has a semver version string", () => {

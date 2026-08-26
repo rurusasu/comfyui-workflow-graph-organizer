@@ -6,6 +6,7 @@ export default defineConfig({
   snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}-{platform}{ext}",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
+  failOnFlakyTests: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 8,
   reporter: [
@@ -14,6 +15,7 @@ export default defineConfig({
   ],
   use: {
     baseURL: e2eConfig.comfyUrl,
+    screenshot: "only-on-failure",
     trace: "on-first-retry",
     viewport: { width: 1600, height: 1000 },
   },

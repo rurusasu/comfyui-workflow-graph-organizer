@@ -1,4 +1,4 @@
-import { SETTING_IDS } from "./settings";
+import { COMMAND_PREFIX, SETTING_IDS } from "./settings";
 
 /** Check if debug logging is enabled */
 export function isDebugEnabled(): boolean {
@@ -29,6 +29,6 @@ export function isDebugEnabled(): boolean {
 /** Log message only if debug logging is enabled */
 export function debugLog(message: string, ...args: unknown[]): void {
   if (isDebugEnabled()) {
-    console.log(`[node-organizer] ${message}`, ...args);
+    console.log(`[${COMMAND_PREFIX}] ${message}`, ...args);
   }
 }

@@ -6,6 +6,8 @@ import {
   extractGraphState,
   triggerOrganize,
   triggerOrganizeGroup,
+  triggerWholeWorkflow,
+  assertStructuredWorkflowInvariants,
 } from "./helpers";
 import { loadFixture } from "./fixtures";
 import { SETTING_IDS } from "../../src/settings";
@@ -38,9 +40,12 @@ test.describe("UI smoke", () => {
     await loadWorkflow(page, loadFixture("simple-dag"));
   });
 
-  test("action bar organize button runs layout", async ({ page }) => {
+  test("action bar Organize Workflow button runs layout", async ({ page }) => {
     const before = await extractGraphState(page);
-    await page.getByRole("button", { name: "Organize" }).click();
+    await page
+      .locator("button")
+      .filter({ hasText: /^Organize Workflow$/ })
+      .click();
     await page.waitForTimeout(1000);
     const after = await extractGraphState(page);
 
@@ -56,8 +61,8 @@ test.describe("UI smoke", () => {
     expect(didAnyNodeMove(before, after)).toBe(true);
   });
 
-  test("context-aware Shift+O organizes selected groups when groups are selected", async ({ page }) => {
-    await loadWorkflow(page, loadFixture("group-test-simple"));
+  test("Shift+O keeps the whole-workflow action primary even when a group is selected", async ({ page }) => {
+    await loadWorkflow(page, loadFixture("whole-workflow-layout"));
 
     const groupTitles = await page.evaluate(() => {
       const w = window as unknown as Record<string, unknown>;
@@ -88,13 +93,41 @@ test.describe("UI smoke", () => {
       canvas.selectedItems = new Set([group]);
     }, groupTitles[0]);
 
-    const before = await extractGraphState(page);
-    // Use Shift+O — should organize the selected group, not the full workflow
     await page.keyboard.press("Shift+O");
     await page.waitForTimeout(1000);
-    const after = await extractGraphState(page);
+    await assertStructuredWorkflowInvariants(page);
+  });
 
-    expect(didAnyNodeMove(before, after)).toBe(true);
+  test("canvas menu and Extensions menu expose the primary whole-workflow action", async ({ page }) => {
+    await loadWorkflow(page, loadFixture("whole-workflow-layout"));
+    await page.evaluate(() => {
+      const appObj = (window as unknown as Record<string, unknown>).app as {
+        extensions: Array<{
+          name: string;
+          getCanvasMenuItems?: () => Array<{
+            content: string;
+            callback: () => void;
+          } | null>;
+        }>;
+      };
+      const extension = appObj.extensions.find(
+        ({ name }) => name === "rurusasu.workflow-graph-organizer",
+      );
+      const item = extension?.getCanvasMenuItems?.().find(
+        (candidate) => candidate?.content === "Organize Workflow",
+      );
+      if (!item) throw new Error("Canvas Organize Workflow item is not registered");
+      item.callback();
+    });
+    await assertStructuredWorkflowInvariants(page);
+
+    await page.evaluate(() => {
+      const appObj = (window as unknown as Record<string, unknown>).app as Record<string, unknown>;
+      const manager = appObj.extensionManager as Record<string, unknown>;
+      const command = manager.command as { execute: (id: string) => void };
+      command.execute("workflow-graph-organizer.organize");
+    });
+    await assertStructuredWorkflowInvariants(page);
   });
 
   test("Organize Group runs layout on the selected group", async ({ page }) => {
@@ -123,12 +156,12 @@ test.describe("UI smoke", () => {
 });
 
 test.describe("Settings panel", () => {
-  async function openNodeOrganizerSettings(page: import("@playwright/test").Page): Promise<void> {
+  async function openWorkflowGraphOrganizerSettings(page: import("@playwright/test").Page): Promise<void> {
     // The sidebar settings button includes the keyboard shortcut in its label
     await page.getByRole("button", { name: /Settings \(Ctrl/ }).click();
     await page.waitForTimeout(500);
     // Navigate to our extension's settings section
-    await page.getByText("Node Organizer", { exact: true }).click();
+    await page.getByText("Workflow Graph Organizer", { exact: true }).click();
     await page.waitForTimeout(500);
   }
 
@@ -137,15 +170,15 @@ test.describe("Settings panel", () => {
     await waitForComfyUI(page);
   });
 
-  test("Node Organizer appears in settings sidebar", async ({ page }) => {
+  test("Workflow Graph Organizer appears in settings sidebar", async ({ page }) => {
     await page.getByRole("button", { name: /Settings \(Ctrl/ }).click();
     await expect(
-      page.getByText("Node Organizer", { exact: true }),
+      page.getByText("Workflow Graph Organizer", { exact: true }),
     ).toBeVisible();
   });
 
   test("settings panel shows About section with version and homepage", async ({ page }) => {
-    await openNodeOrganizerSettings(page);
+    await openWorkflowGraphOrganizerSettings(page);
     await expect(
       page.getByText(`Version ${packageVersion.version}`),
     ).toBeVisible();
@@ -153,7 +186,7 @@ test.describe("Settings panel", () => {
   });
 
   test("settings panel shows Layout section with sliders", async ({ page }) => {
-    await openNodeOrganizerSettings(page);
+    await openWorkflowGraphOrganizerSettings(page);
     await expect(page.getByText("Horizontal Gap")).toBeVisible();
     await expect(page.getByText("Vertical Gap")).toBeVisible();
     await expect(page.getByText("Group Padding")).toBeVisible();
@@ -161,7 +194,7 @@ test.describe("Settings panel", () => {
   });
 
   test("settings panel shows Behavior and Keybindings sections", async ({ page }) => {
-    await openNodeOrganizerSettings(page);
+    await openWorkflowGraphOrganizerSettings(page);
     await expect(
       page.getByText("Fit to View After Organize"),
     ).toBeVisible();
@@ -169,7 +202,7 @@ test.describe("Settings panel", () => {
   });
 
   test("settings sections appear in correct order", async ({ page }) => {
-    await openNodeOrganizerSettings(page);
+    await openWorkflowGraphOrganizerSettings(page);
 
     // Collect all visible text and check the relative order of section headings
     const allText = await page.locator("body").innerText();
@@ -223,7 +256,7 @@ test.describe("Fit to view after organize", () => {
 
     const viewportBefore = await getViewport(page);
 
-    await triggerOrganize(page);
+    await triggerWholeWorkflow(page);
     await page.waitForTimeout(1500);
 
     const viewportAfter = await getViewport(page);
@@ -258,7 +291,7 @@ test.describe("Fit to view after organize", () => {
       }
     });
 
-    await triggerOrganize(page);
+    await triggerWholeWorkflow(page);
     await page.waitForTimeout(1500);
 
     const viewport = await getViewport(page);
@@ -276,7 +309,7 @@ test.describe("Fit to view after organize", () => {
     await enableFitToView(page);
 
     // Organize full workflow first to get a stable viewport
-    await triggerOrganize(page);
+    await triggerWholeWorkflow(page);
     await page.waitForTimeout(1500);
 
     const viewportBefore = await getViewport(page);

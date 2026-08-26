@@ -50,15 +50,8 @@ test.describe("Token Layout", () => {
 
     const state1 = await extractGraphState(page);
 
-    // Organize again via command
-    await page.evaluate(() => {
-      const w = window as unknown as Record<string, unknown>;
-      const appObj = w.app as Record<string, unknown>;
-      const em = appObj.extensionManager as Record<string, unknown>;
-      const command = em.command as { execute: (id: string) => void };
-      command.execute("node-organizer.organize-workflow");
-    });
-    await page.waitForTimeout(1000);
+    // Keep this legacy engine-compatibility assertion on node-only behavior.
+    await triggerOrganize(page);
 
     const state2 = await extractGraphState(page);
 

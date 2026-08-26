@@ -1,224 +1,285 @@
-name: Publish to Comfy registry
+name: Publish reviewed release candidate to Comfy Registry
 
 on:
   workflow_dispatch:
-    inputs:
-      bump_type:
-        description: "Version bump type"
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
-        default: patch
+
+concurrency:
+  group: workflow-graph-organizer-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
-  test:
-    name: Test before publish
+  verify:
+    name: Verify reviewed main at 1.0.0
+    if: github.ref == 'refs/heads/main' && github.ref_protected
     runs-on: ubuntu-latest
-    if: github.actor == github.repository_owner && github.ref == 'refs/heads/main'
+    outputs:
+      release-sha: ${{ steps.identity.outputs.sha }}
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Use Python from .python-version
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
         with:
-          python-version-file: ".python-version"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version-file: .python-version
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6.0.10
+      - uses: actions/setup-node@v7.0.0
         with:
-          node-version: 20
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Sync Python dependencies
-        run: uv sync --locked --group dev
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Run unit tests
-        run: pnpm test
-
-      - name: Build
-        run: pnpm build
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --locked --group dev
+      - name: Verify product identity and existing release version
+        id: identity
+        shell: bash
+        run: |
+          node <<'NODE'
+          const packageJson = require("./package.json");
+          const expected = {
+            name: "@rurusasu/workflow-graph-organizer",
+            version: "1.0.0",
+            repository: {
+              type: "git",
+              url: "git+https://github.com/rurusasu/comfyui-workflow-graph-organizer.git",
+            },
+            homepage: "https://github.com/rurusasu/comfyui-workflow-graph-organizer#readme",
+            bugs: {
+              url: "https://github.com/rurusasu/comfyui-workflow-graph-organizer/issues",
+            },
+          };
+          for (const key of ["name", "version", "repository", "homepage", "bugs"]) {
+            if (JSON.stringify(packageJson[key]) !== JSON.stringify(expected[key])) {
+              throw new Error(`package.json ${key} does not match the release identity`);
+            }
+          }
+          NODE
+          grep -Fx 'name = "workflow-graph-organizer"' pyproject.toml
+          grep -Fx 'version = "1.0.0"' pyproject.toml
+          grep -Fx 'Repository = "https://github.com/rurusasu/comfyui-workflow-graph-organizer"' pyproject.toml
+          grep -Fx 'DisplayName = "ComfyUI Workflow Graph Organizer"' pyproject.toml
+          grep -Fx 'PublisherId = "rurusasu"' pyproject.toml
+          grep -Fx 'export const CURRENT_VERSION = "1.0.0";' src/settings.ts
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - run: git diff --check HEAD^ HEAD
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Build and verify tracked Registry frontend bundle
+        shell: bash
+        run: |
+          pnpm build
+          git diff --exit-code -- dist/index.js
+          test -s dist/index.js
+      - run: pnpm test:lib
+      - uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: Install Playwright browsers
-        run: pnpx playwright install chromium --with-deps
-
-      - name: Cache test ComfyUI environment
-        uses: actions/cache@v4
+      - run: pnpm exec playwright install chromium --with-deps
+      - uses: actions/cache@v6.1.0
         with:
           path: .test-comfy
           key: ${{ runner.os }}-test-comfy-${{ hashFiles('.python-version', 'e2e.config.ts', 'scripts/setup-test-comfy.ts', 'scripts/setup-test-comfy-helpers.ts') }}
-
-      - name: Setup test ComfyUI
-        run: pnpm setup:e2e
+      - run: pnpm setup:e2e
         timeout-minutes: 15
-
-      - name: Run E2E tests
-        run: pnpm test:e2e
+      - run: pnpm test:e2e
         timeout-minutes: 30
+      - name: Upload browser-test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: release-e2e-test-results
+          path: |
+            tests/screenshots/
+            test-results/
+            playwright-report/
+          if-no-files-found: warn
+          retention-days: 7
 
-  bump-version:
-    name: Bump version and create tag
+  release:
+    name: Create workflow-graph-organizer-v1.0.0 release
+    needs: verify
     runs-on: ubuntu-latest
-    needs: test
-    if: github.actor == github.repository_owner && github.ref == 'refs/heads/main'
-    outputs:
-      previous-version: ${{ steps.versions.outputs.previous-version }}
-      current-version: ${{ steps.versions.outputs.current-version }}
     permissions:
       contents: write
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
+          ref: ${{ needs.verify.outputs.release-sha }}
           fetch-depth: 0
-
-      - name: Use Python from .python-version
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: ".python-version"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-
-      - name: Configure Git for GitHub Actions bot
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Sync Python dependencies
-        run: uv sync --locked --group dev
-
-      - name: Compute release version
-        id: versions
+      - name: Create or verify the prefixed tag and GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.verify.outputs.release-sha }}
+          TAG: workflow-graph-organizer-v1.0.0
         shell: bash
         run: |
-          previous_version="$(uv run bump-my-version show current_version)"
-          current_version="$(uv run bump-my-version show --increment "${{ github.event.inputs.bump_type }}" new_version)"
-          {
-            echo "previous-version=${previous_version}"
-            echo "current-version=${current_version}"
-          } >> "$GITHUB_OUTPUT"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git fetch --tags --force origin
+          if git ls-remote --exit-code --refs origin "refs/tags/$TAG" > /dev/null; then
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            test "$(git rev-list -n 1 "$TAG")" = "$RELEASE_SHA"
+          else
+            git tag -a "$TAG" -m "Release $TAG" "$RELEASE_SHA"
+            git push origin "refs/tags/$TAG"
+          fi
+          release_body="$(mktemp)"
+          release_status="$(mktemp)"
+          set +e
+          curl --silent --show-error --location --max-time 20 --output "$release_body" --write-out "%{http_code}" --header "Authorization: Bearer $GH_TOKEN" --header "Accept: application/vnd.github+json" "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/$TAG" > "$release_status"
+          release_curl_exit=$?
+          set -e
+          test "$release_curl_exit" = "0"
+          if test "$(tr -d '\n' < "$release_status")" = "404"; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$RELEASE_SHA" --title "$TAG" --generate-notes
+          elif test "$(tr -d '\n' < "$release_status")" = "200"; then
+            RELEASE_JSON="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,name,targetCommitish)" TAG="$TAG" RELEASE_SHA="$RELEASE_SHA" node <<'NODE'
+            const release = JSON.parse(process.env.RELEASE_JSON);
+            if (
+              release.tagName !== process.env.TAG ||
+              release.name !== process.env.TAG ||
+              release.targetCommitish !== process.env.RELEASE_SHA
+            ) {
+              throw new Error("existing GitHub release does not match the reviewed tag and commit");
+            }
+          NODE
+            echo "GitHub release already matches $TAG and $RELEASE_SHA"
+          else
+            echo "Unable to determine whether GitHub release $TAG exists" >&2
+            exit 1
+          fi
 
-      - name: Bump version and refresh uv.lock
-        run: |
-          uv run bump-my-version bump --no-commit --no-tag ${{ github.event.inputs.bump_type }}
-          uv lock
-
-      - name: Commit version bump
-        run: |
-          git add .python-version pyproject.toml package.json src/settings.ts uv.lock
-          git commit -m "chore: bump version to ${{ steps.versions.outputs.current-version }} [skip ci]"
-
-      - name: Create release tag
-        run: git tag "v${{ steps.versions.outputs.current-version }}" -m "Release version ${{ steps.versions.outputs.current-version }}"
-
-      - name: Push version commit and tag
-        run: git push origin HEAD:main --follow-tags
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.versions.outputs.current-version }}
-          name: Release v${{ steps.versions.outputs.current-version }}
-          body: |
-            ## Version ${{ steps.versions.outputs.current-version }}
-
-            Bumped from version ${{ steps.versions.outputs.previous-version }} to ${{ steps.versions.outputs.current-version }}
-
-            This release was automatically created by the version bump workflow.
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-
-  publish-node:
-    name: Publish Custom Node to registry
+  registry:
+    name: Publish exact reviewed checkout to Comfy Registry
+    needs: [verify, release]
     runs-on: ubuntu-latest
-    needs: bump-version
-    if: github.actor == github.repository_owner && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
-          ref: v${{ needs.bump-version.outputs.current-version }}
+          ref: ${{ needs.verify.outputs.release-sha }}
           fetch-depth: 0
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Build custom node
-        run: pnpm build
-
-      - name: Publish Custom Node
-        uses: Comfy-Org/publish-node-action@main
+      - name: Verify exact reviewed checkout
+        env:
+          RELEASE_SHA: ${{ needs.verify.outputs.release-sha }}
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+      - name: Verify tracked frontend bundle exists
+        shell: bash
+        run: test -s dist/index.js
+      - name: Verify Registry retry preflight
+        id: registry-preflight
+        env:
+          NODE_ID: workflow-graph-organizer
+          PUBLISHER_ID: rurusasu
+          REPOSITORY_URL: https://github.com/rurusasu/comfyui-workflow-graph-organizer
+          VERSION: 1.0.0
+        shell: bash
+        run: |
+          version_body="$(mktemp)"
+          version_status="$(mktemp)"
+          node_body="$(mktemp)"
+          node_status="$(mktemp)"
+          set +e
+          curl --silent --show-error --location --max-time 20 --output "$version_body" --write-out "%{http_code}" "https://api.comfy.org/nodes/$NODE_ID/versions/$VERSION" > "$version_status"
+          version_curl_exit=$?
+          curl --silent --show-error --location --max-time 20 --output "$node_body" --write-out "%{http_code}" "https://api.comfy.org/nodes/$NODE_ID" > "$node_status"
+          node_curl_exit=$?
+          set -e
+          VERSION_BODY="$version_body" VERSION_HTTP_STATUS="$(tr -d '\n' < "$version_status")" VERSION_CURL_EXIT="$version_curl_exit" NODE_BODY="$node_body" NODE_HTTP_STATUS="$(tr -d '\n' < "$node_status")" NODE_CURL_EXIT="$node_curl_exit" node <<'NODE'
+          const { appendFileSync, readFileSync } = require("node:fs");
+          const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
+          const fail = (message) => {
+            throw new Error(`Registry retry preflight failed: ${message}`);
+          };
+          if (process.env.VERSION_CURL_EXIT !== "0") {
+            fail("the exact-version request did not complete");
+          }
+          if (process.env.NODE_CURL_EXIT !== "0") {
+            fail("the node metadata request did not complete");
+          }
+          const checkNodeMetadata = (node) => {
+            if (
+              node === null ||
+              typeof node !== "object" ||
+              node.repository !== process.env.REPOSITORY_URL ||
+              node.publisher === null ||
+              typeof node.publisher !== "object" ||
+              node.publisher.id !== process.env.PUBLISHER_ID
+            ) {
+              fail("the Registry node repository or publisher does not match this product");
+            }
+          };
+          if (process.env.VERSION_HTTP_STATUS === "404") {
+            if (process.env.NODE_HTTP_STATUS === "404") {
+              console.log("Registry has no node or exact version; publishing through the official action.");
+              appendFileSync(process.env.GITHUB_OUTPUT, "skip=false\n");
+              process.exit(0);
+            }
+            if (process.env.NODE_HTTP_STATUS !== "200") {
+              fail(`the node metadata request returned HTTP ${process.env.NODE_HTTP_STATUS}`);
+            }
+            let node;
+            try {
+              node = readJson(process.env.NODE_BODY);
+            } catch {
+              fail("the Registry node metadata response was not valid JSON");
+            }
+            checkNodeMetadata(node);
+            console.log("Registry has no exact version; publishing through the official action.");
+            appendFileSync(process.env.GITHUB_OUTPUT, "skip=false\n");
+            process.exit(0);
+          }
+          if (process.env.VERSION_HTTP_STATUS !== "200") {
+            fail(`the exact-version request returned HTTP ${process.env.VERSION_HTTP_STATUS}`);
+          }
+          if (process.env.NODE_HTTP_STATUS !== "200") {
+            fail(`the node metadata request returned HTTP ${process.env.NODE_HTTP_STATUS}`);
+          }
+          let version;
+          let node;
+          try {
+            version = readJson(process.env.VERSION_BODY);
+            node = readJson(process.env.NODE_BODY);
+          } catch {
+            fail("a successful Registry response was not valid JSON");
+          }
+          if (
+            version === null ||
+            typeof version !== "object" ||
+            version.node_id !== process.env.NODE_ID ||
+            version.version !== process.env.VERSION
+          ) {
+            fail("the exact-version response does not match the requested node and version");
+          }
+          checkNodeMetadata(node);
+          if (
+            version.status === "NodeVersionStatusActive" ||
+            version.status === "NodeVersionStatusPending"
+          ) {
+            console.log("Registry already has the exact active or pending product version.");
+            appendFileSync(process.env.GITHUB_OUTPUT, "skip=true\n");
+            process.exit(0);
+          }
+          if (
+            version.status === "NodeVersionStatusFlagged" ||
+            version.status === "NodeVersionStatusDeleted" ||
+            version.status === "NodeVersionStatusBanned"
+          ) {
+            fail(`the exact version has terminal Registry status ${version.status}`);
+          }
+          fail(`the exact version has unsupported Registry status ${String(version.status)}`);
+          NODE
+      - name: Publish through the official Comfy Registry action
+        if: steps.registry-preflight.outputs.skip != 'true'
+        uses: Comfy-Org/publish-node-action@1.0.1
         with:
           personal_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
-          skip_checkout: "true"
-
-  publish-npm:
-    name: Publish to npm
-    runs-on: ubuntu-latest
-    needs: bump-version
-    if: github.actor == github.repository_owner && github.ref == 'refs/heads/main'
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-        with:
-          ref: v${{ needs.bump-version.outputs.current-version }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "pnpm"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Build library
-        run: pnpm build:lib
-
-      - name: Smoke test
-        run: node scripts/smoke-core-package.mjs
-
-      - name: Publish to npm
-        run: pnpm publish --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

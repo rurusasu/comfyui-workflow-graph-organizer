@@ -3,10 +3,13 @@ import {
   waitForComfyUI,
   loadWorkflow,
   extractGraphState,
+  extractGraphSemantics,
   extractGroupMemberships,
   triggerOrganize,
+  triggerWholeWorkflow,
   assertInvariants,
   assertIdempotent,
+  assertStructuredWorkflowInvariants,
 } from "./helpers";
 import { loadFixture } from "./fixtures";
 
@@ -14,6 +17,51 @@ test.describe("Organize Workflow", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
     await waitForComfyUI(page);
+  });
+
+  test("whole-workflow-layout: validates backgrounds, nested padding, comment lane, semantics, idempotence, and serialized reload", async ({
+    page,
+  }) => {
+    await loadWorkflow(page, loadFixture("whole-workflow-layout"));
+    const beforeSemantics = await extractGraphSemantics(page);
+
+    await triggerWholeWorkflow(page);
+    await assertStructuredWorkflowInvariants(page);
+    const afterFirstRun = await extractGraphState(page);
+    await triggerWholeWorkflow(page);
+    expect(await extractGraphState(page)).toEqual(afterFirstRun);
+
+    const afterSemantics = await extractGraphSemantics(page);
+    expect(afterSemantics).toEqual(beforeSemantics);
+
+    const organized = await extractGraphState(page);
+    const serialized = await page.evaluate(() => {
+      const appObj = (window as unknown as Record<string, unknown>).app as Record<string, unknown>;
+      const canvas = appObj.canvas as Record<string, unknown> & {
+        getCurrentGraph?: () => Record<string, unknown> | undefined;
+      };
+      const graph = (canvas.getCurrentGraph?.() ?? canvas.graph ?? appObj.graph) as {
+        serialize: () => Record<string, unknown>;
+      };
+      return JSON.stringify(graph.serialize());
+    });
+    expect(serialized).toBeTruthy();
+    await page.reload();
+    await waitForComfyUI(page);
+    await loadWorkflow(page, JSON.parse(serialized) as Record<string, unknown>);
+    expect(await extractGraphState(page)).toEqual(organized);
+  });
+
+  test("whole-workflow-layout: one native undo restores exact geometry", async ({ page }) => {
+    await loadWorkflow(page, loadFixture("whole-workflow-layout"));
+    const before = await extractGraphState(page);
+    await triggerWholeWorkflow(page);
+
+    await page.locator("#graph-canvas").click({ force: true });
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+Z" : "Control+Z");
+    await page.waitForTimeout(500);
+
+    expect(await extractGraphState(page)).toEqual(before);
   });
 
   test("simple-dag: organizes and passes invariants", async ({ page }) => {

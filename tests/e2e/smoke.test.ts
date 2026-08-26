@@ -28,16 +28,18 @@ test.describe("Smoke tests", () => {
         get: <T>(id: string) => T | undefined;
       };
       return {
-        hasOrganizeWorkflow: commands.some(
-          (c) => c.id === "node-organizer.organize-workflow",
+        hasPrimaryOrganize: commands.some(
+          (c) => c.id === "workflow-graph-organizer.organize",
         ),
         hasOrganizeGroups: commands.some(
-          (c) => c.id === "node-organizer.organize-groups",
+          (c) => c.id === "workflow-graph-organizer.organize-groups",
         ),
-        defaultAlgorithm: setting.get<string>("Node Organizer.Default Algorithm"),
+        defaultAlgorithm: setting.get<string>(
+          "Workflow Graph Organizer.Default Algorithm",
+        ),
       };
     });
-    expect(extensionState.hasOrganizeWorkflow).toBe(true);
+    expect(extensionState.hasPrimaryOrganize).toBe(true);
     expect(extensionState.hasOrganizeGroups).toBe(true);
     expect(extensionState.defaultAlgorithm).toBe("sugiyama");
   });
