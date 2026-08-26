@@ -950,6 +950,13 @@ export async function expectGraphCanvasScreenshot(
   name: string,
 ): Promise<void> {
   await fitGraphForSnapshot(page);
+  await page.evaluate(() => {
+    document
+      .querySelectorAll("p-toast, .p-toast, .p-toast-message, [role=alert]")
+      .forEach((element) => {
+        (element as HTMLElement).style.visibility = "hidden";
+      });
+  });
   const graphCanvas = page.locator("#graph-canvas");
   await expect(graphCanvas).toHaveScreenshot(name, {
     animations: "disabled",

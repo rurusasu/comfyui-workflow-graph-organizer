@@ -1,9 +1,26 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const readPublicFile = (path: string): string => readFileSync(path, "utf8");
 
 describe("public documentation", () => {
+  it("ships the exact frontend bundle consumed by Registry publication", () => {
+    expect(() =>
+      execFileSync("git", ["ls-files", "--error-unmatch", "dist/index.js"], {
+        stdio: "pipe",
+      }),
+    ).not.toThrow();
+    expect(readPublicFile("__init__.py")).toContain('WEB_DIRECTORY = "./dist"');
+    expect(readPublicFile("pyproject.toml")).toContain("includes = ['dist/']");
+
+    const publish = readPublicFile(".github/workflows/publish_action.yaml");
+    const ci = readPublicFile(".github/workflows/ci.yaml");
+    expect(ci).toContain("git diff --exit-code -- dist/index.js");
+    expect(publish).toContain("git diff --exit-code -- dist/index.js");
+    expect(publish).toContain("test -s dist/index.js");
+  });
+
   it("uses unique discoverability metadata for the public package", () => {
     const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
       keywords?: unknown;

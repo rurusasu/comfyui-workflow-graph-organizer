@@ -27,7 +27,11 @@ jobs:
       - run: git diff --check HEAD^ HEAD
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm build
+      - name: Build and verify tracked Registry frontend bundle
+        shell: bash
+        run: |
+          pnpm build
+          git diff --exit-code -- dist/index.js
       - run: pnpm test:lib
 
   e2e:

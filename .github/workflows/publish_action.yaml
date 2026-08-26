@@ -71,7 +71,12 @@ jobs:
       - run: git diff --check HEAD^ HEAD
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm build
+      - name: Build and verify tracked Registry frontend bundle
+        shell: bash
+        run: |
+          pnpm build
+          git diff --exit-code -- dist/index.js
+          test -s dist/index.js
       - run: pnpm test:lib
       - uses: actions/cache@v6.1.0
         with:
@@ -167,6 +172,9 @@ jobs:
           RELEASE_SHA: ${{ needs.verify.outputs.release-sha }}
         shell: bash
         run: test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+      - name: Verify tracked frontend bundle exists
+        shell: bash
+        run: test -s dist/index.js
       - name: Verify Registry retry preflight
         id: registry-preflight
         env:

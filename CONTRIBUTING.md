@@ -27,6 +27,11 @@ because ComfyUI loads `dist/`. Use checked-in fixtures in `tests/fixtures/`.
 E2E evidence must use the dedicated `.test-comfy` WebUI, never a personal
 workflow or separate instance.
 
+`dist/index.js` is a tracked release artifact because the official Registry
+publication action performs a clean checkout before packaging. After changing
+frontend source, run `pnpm build` and commit the regenerated bundle; CI rejects
+a bundle that differs from a fresh build.
+
 ## Test-driven development
 
 Use test-driven development for behavior changes and bug fixes:
