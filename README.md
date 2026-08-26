@@ -1,117 +1,187 @@
-# ComfyUI Node Organizer
+# ComfyUI Workflow Graph Organizer
 
-Automatically organizes ComfyUI workflows with a compact group-aware layout. Created with [comfyui-custom-node-template](https://github.com/PBandDev/comfyui-custom-node-template).
+[![CI](https://github.com/rurusasu/comfyui-workflow-graph-organizer/actions/workflows/ci.yaml/badge.svg)](https://github.com/rurusasu/comfyui-workflow-graph-organizer/actions/workflows/ci.yaml)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/rurusasu/comfyui-workflow-graph-organizer?display_name=tag)](https://github.com/rurusasu/comfyui-workflow-graph-organizer/releases)
 
-### Preview of organizing a workflow
+Organize a complete ComfyUI workflow graph: nodes, nested backgrounds, Markdown
+comments, and ungrouped nodes. This is an independently maintained AGPL-3.0
+fork of [ComfyUI Node Organizer](https://github.com/PBandDev/comfyui-node-organizer).
 
-<img src="assets/preview.gif" alt="User clicking on the Organize Workflow context menu item" loop=infinite>
+<p align="center">
+  <img src="assets/workflow-graph-before.png" alt="Generic checked-in workflow fixture before organization, with nested backgrounds and a Markdown comment" width="49%">
+  <img src="assets/workflow-graph-after.png" alt="The same generic checked-in workflow fixture after complete workflow organization" width="49%">
+</p>
 
-### Preview of organizing groups with tokens
+Both images are reproducible captures of the checked-in
+[`tests/fixtures/whole-workflow-layout.json`](tests/fixtures/whole-workflow-layout.json)
+fixture in this repository's dedicated `.test-comfy` WebUI.
 
-<img src="assets/preview-tokens.gif" alt="User clicking on different groups and seeing the nodes arranged according to the tokens" loop=infinite>
+## Features
+
+- Whole-graph layout in one native undo transaction.
+- Nested background fitting, root-background packing, comment lanes, and an
+  ungrouped-node cluster.
+- Finite-geometry, padding, and overlap validation with exact rollback on an
+  error.
+- **Organize Nodes Only**, selected **Organize Group**, title tokens, and the
+  `sugiyama`, horizontal, and vertical algorithms.
+
+## Comparison
+
+| Capability | This fork | Upstream Node Organizer | Workflow-file/sidebar managers |
+| --- | --- | --- | --- |
+| Primary scope | Complete graph geometry | Node and group layout | File discovery and management |
+| Backgrounds, comments, ungrouped nodes | Normalized together | Not this fork's pipeline | Outside scope |
+| Validation and rollback | Yes | Not this fork's additions | Outside scope |
+| Relationship | Replacement | Original project | Separate tools |
 
 ## Installation
 
-1. Open **ComfyUI**
-2. Go to **Manager > Custom Node Manager**
-3. Search for `Node Organizer`
-4. Click **Install**
+### ComfyUI Manager / Registry
+
+The Comfy Registry node is not published yet, so Manager/Registry installation
+is not available. After the reviewed GitHub release candidate is published,
+search for `workflow-graph-organizer` in ComfyUI Manager. No Registry URL is
+included until it resolves.
+
+### Manual Git installation
+
+From ComfyUI's `custom_nodes` directory, clone the reviewed GitHub repository
+and restart ComfyUI:
+
+```bash
+git clone https://github.com/rurusasu/comfyui-workflow-graph-organizer.git workflow-graph-organizer
+```
+
+To update, stop ComfyUI, enter that directory, and run:
+
+```bash
+git pull --ff-only
+```
+
+To uninstall, stop ComfyUI, remove the `workflow-graph-organizer` directory
+from `custom_nodes` with your file manager, then restart ComfyUI.
+
+## Migration
+
+This extension replaces `comfyui-node-organizer`; it is not an add-on
+dependency. Double installation is unsupported: do not install both extensions.
+
+1. Save open workflows.
+2. Disable or remove `comfyui-node-organizer`.
+3. Install `workflow-graph-organizer`.
+4. Restart ComfyUI and confirm **Organize Workflow** appears.
+5. Keep a recoverable copy of the original package until verification.
+
+The extension warns when the original organizer is still registered.
 
 ## Usage
 
-Use any of these entry points:
+Run **Organize Workflow** from the action bar, canvas menu,
+`Extensions > Workflow Graph Organizer`, or `Shift+O`. Edit the shortcut in
+ComfyUI **Settings > Keybinding**. **Organize Nodes Only** keeps the narrower
+node-layout action; select one background for **Organize Group**.
 
-- Right-click the canvas and choose **Organize Workflow**
-- Select groups and choose **Organize Group**
-- Click the **Organize** action-bar button
-- Use `Extensions > Node Organizer`
-- Press `Shift+O`
-
-## Group Layout Tokens
-
-Add tokens to group titles to control how nodes are arranged:
+### Title tokens
 
 | Token | Effect |
-|-------|--------|
-| `[HORIZONTAL]` | Single horizontal row |
-| `[VERTICAL]` | Single vertical column |
-| `[2ROW]`...`[9ROW]` | Distribute into N rows |
-| `[2COL]`...`[9COL]` | Distribute into N columns |
+| --- | --- |
+| `[HORIZONTAL]` or `[1ROW]` | One horizontal row |
+| `[VERTICAL]` or `[1COL]` | One vertical column |
+| `[2ROW]` through `[9ROW]` | Distribute into that many rows |
+| `[2COL]` through `[9COL]` | Distribute into that many columns |
 
-**Examples:**
-- `"My Loaders [HORIZONTAL]"` - arranges all nodes in a single row
-- `"Processing [3COL]"` - distributes nodes into 3 columns
+Tokens are case-insensitive. Nested backgrounds use their own token;
+backgrounds without one use the selected default algorithm.
 
-- Tokens are case-insensitive (`[horizontal]` works)
-- `[1ROW]` = `[HORIZONTAL]`, `[1COL]` = `[VERTICAL]`
-- Nested groups each respect their own tokens
-- Groups without tokens use default DAG-based layout
+## Settings
 
-## Testing
+All settings are under **Workflow Graph Organizer**. Invalid stored
+whole-workflow values fall back to these actual defaults.
 
-- `pnpm typecheck`
-- `pnpm test`
-- `pnpm build`
-- `pnpm build:lib` emits the pure library entrypoint to `lib/`
-- `pnpm test:lib` smoke-tests the built `comfyui-node-organizer` npm export
-- `pnpm setup:e2e` provisions a dedicated ComfyUI instance for browser tests and installs the exact workflow-template package required by the pinned ComfyUI checkout
-- `pnpm test:e2e` runs the full Playwright suite against that instance
-- Broad installed-template coverage is discovered live at E2E runtime from the pinned test ComfyUI environment, with one correctness-invariant test per installed workflow template
+| Setting | Default |
+| --- | ---: |
+| Default Layout Algorithm | `sugiyama` |
+| Horizontal Gap / Vertical Gap | `100` / `40` |
+| Group Padding / Disconnected Node Gap | `30` / `150` |
+| Background Padding Top / Right / Bottom / Left | `72` / `48` / `48` / `48` |
+| Root Background Gap / Comment Gap | `24` / `48` |
+| Comment Lane Gap / Ungrouped Cluster Gap | `72` / `24` |
+| Fit to View After Organize / Enable Debug Logging | `false` / `false` |
 
-Checked-in repo fixtures live in `tests/fixtures/`. Visual regression is graph-canvas scoped and runs as part of the normal E2E suite.
-Visual regression baselines are platform-specific: committed snapshots use `-win32` and `-linux` suffixes.
+For example, increase **Root Background Gap** to add space between separately
+packed root backgrounds. Default algorithms are `sugiyama`, `horizontal`, and
+`vertical`.
 
-## Library API
+## Compatibility
 
-Most users can ignore this section. The extension works entirely inside ComfyUI.
+The release candidate is browser-tested against repository-pinned ComfyUI
+`v0.18.1` on Linux. Registry metadata requires ComfyUI `>=0.3.0`; this is not
+a claim that every intervening frontend version has been tested. Reports are
+accepted for current Linux, macOS, and Windows ComfyUI installations with a
+minimal workflow and frontend version.
 
-The package is published to npm as `comfyui-node-organizer` for developers who want to reuse the layout engine outside ComfyUI, for example in a script, service, test harness, or workflow conversion tool.
+## Troubleshooting
+
+| Symptom | What to check |
+| --- | --- |
+| Actions are missing | Restart ComfyUI and remove the original organizer before retrying. |
+| `Shift+O` does not run | Resolve its conflict in **Settings > Keybinding**. |
+| “Workflow normalized” warning | The node engine made no observable geometry change; backgrounds and comments were normalized. |
+| Organization error | Original geometry is restored; report the minimal JSON and browser-console error. |
+| Stale changes | Restart ComfyUI and hard-refresh the browser bundle. |
+
+Use the [bug report form](.github/ISSUE_TEMPLATE/bug.yml) or
+[feature request form](.github/ISSUE_TEMPLATE/feature.yml).
+
+## Development
+
+Use Node `24` and the pnpm version pinned in `package.json`. E2E uses only the
+repository's dedicated `.test-comfy` instance; build first because ComfyUI
+loads `dist/`.
 
 ```bash
-npm install comfyui-node-organizer
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:lib
+pnpm setup:e2e
+pnpm test:e2e
 ```
 
-```ts
-import { normalizeWorkflowGeometry, inferGroupMembership } from "comfyui-node-organizer";
-```
+`src/core.ts` is the pure library entrypoint. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for development and test guidance.
 
-It exposes a small pure API:
-- `normalizeWorkflowGeometry(...)` lays out plain workflow data and returns absolute node and group rectangles
-- `inferGroupMembership(...)` infers direct group membership from node and group rectangles
+## Versioning
 
-In practice: if you want "organize this workflow JSON the same way the extension would" without loading ComfyUI, this is the entrypoint.
+The existing version is `1.0.0` in `package.json` and `pyproject.toml`. GitHub
+tags use `workflow-graph-organizer-v<version>` to avoid upstream tag collisions.
+The manual workflow runs only from reviewed `main`, verifies all gates, creates
+that prefixed tag and GitHub release, then publishes the same checkout.
 
-Build it locally with `pnpm build:lib`. `pnpm test:lib` verifies that the built package can be imported by Node.
+The Comfy Registry node and scoped npm package are not published. There is no
+npm publication step and no Registry or npm link until those destinations
+resolve. The [GitHub releases page](https://github.com/rurusasu/comfyui-workflow-graph-organizer/releases)
+is the release-candidate destination; it currently has no `1.0.0` candidate.
 
-### Local CI
+## Upstream
 
-Install [act](https://github.com/nektos/act) and Docker, then run:
+This is an independently maintained fork of
+[PBandDev/comfyui-node-organizer](https://github.com/PBandDev/comfyui-node-organizer).
+It retains upstream history, AGPL-3.0 notices, and attribution; upstream does
+not maintain or endorse this project. See [UPSTREAM.md](UPSTREAM.md).
 
-- `pnpm ci:local` runs the full local CI workflow with `act`
+## License
 
-## Release
+This project is licensed under [AGPL-3.0](LICENSE). Upstream notices and
+attribution are retained.
 
-Maintainer flow:
+## Security
 
-- Merge the release branch into `main`
-- Trigger `.github/workflows/publish_action.yaml` manually from `main`
+Follow [SECURITY.md](SECURITY.md) for private vulnerability reporting.
 
-That workflow runs the full test suite, bumps versioned files with `uv run bump-my-version`, creates the tag and GitHub release, then publishes the custom node from the bumped tag ref.
+## Changelog
 
-### Manual browser testing
-
-Build the extension first so ComfyUI loads the current `dist/` output:
-
-- `pnpm build`
-
-Launch the test ComfyUI instance on a free port:
-
-- `.test-comfy/venv/Scripts/comfy.exe --skip-prompt --workspace .test-comfy/comfyui/ launch -- --cpu --port 65192`
-
-If the port is already taken, either choose a different port or stop leftover test-instance processes first:
-
-- `Get-Process | Where-Object { $_.Path -like '*comfy-node-organizer\\.test-comfy*' } | Stop-Process -Force`
-
-## Known Limitations
-
-Very large or unusual workflows may still expose edge cases. If you hit one, please [open a GitHub issue](https://github.com/PBandDev/comfyui-node-organizer/issues) with a minimal reproducible workflow attached.
+See [CHANGELOG.md](CHANGELOG.md) for release history.

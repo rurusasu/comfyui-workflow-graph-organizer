@@ -1,224 +1,104 @@
-name: Publish to Comfy registry
+name: Publish reviewed release candidate to Comfy Registry
 
 on:
   workflow_dispatch:
-    inputs:
-      bump_type:
-        description: "Version bump type"
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
-        default: patch
 
 jobs:
-  test:
-    name: Test before publish
+  verify:
+    name: Verify reviewed main at 1.0.0
+    if: github.ref == 'refs/heads/main' && github.ref_protected
     runs-on: ubuntu-latest
-    if: github.actor == github.repository_owner && github.ref == 'refs/heads/main'
+    outputs:
+      release-sha: ${{ steps.identity.outputs.sha }}
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-
-      - name: Use Python from .python-version
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v7.0.1
         with:
-          python-version-file: ".python-version"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version-file: .python-version
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6.0.10
+      - uses: actions/setup-node@v7.0.0
         with:
-          node-version: 20
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Sync Python dependencies
-        run: uv sync --locked --group dev
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Run unit tests
-        run: pnpm test
-
-      - name: Build
-        run: pnpm build
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --locked --group dev
+      - name: Verify product identity and existing release version
+        id: identity
+        shell: bash
+        run: |
+          test "$(node -p "require('./package.json').name")" = "@rurusasu/workflow-graph-organizer"
+          test "$(node -p "require('./package.json').version")" = "1.0.0"
+          grep -Fx 'name = "workflow-graph-organizer"' pyproject.toml
+          grep -Fx 'version = "1.0.0"' pyproject.toml
+          grep -Fx 'export const CURRENT_VERSION = "1.0.0";' src/settings.ts
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          ! git rev-parse --verify --quiet "refs/tags/workflow-graph-organizer-v1.0.0"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - run: git diff --check HEAD^ HEAD
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm test:lib
+      - uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-
-      - name: Install Playwright browsers
-        run: pnpx playwright install chromium --with-deps
-
-      - name: Cache test ComfyUI environment
-        uses: actions/cache@v4
+      - run: pnpm exec playwright install chromium --with-deps
+      - uses: actions/cache@v6.1.0
         with:
           path: .test-comfy
           key: ${{ runner.os }}-test-comfy-${{ hashFiles('.python-version', 'e2e.config.ts', 'scripts/setup-test-comfy.ts', 'scripts/setup-test-comfy-helpers.ts') }}
-
-      - name: Setup test ComfyUI
-        run: pnpm setup:e2e
+      - run: pnpm setup:e2e
         timeout-minutes: 15
-
-      - name: Run E2E tests
-        run: pnpm test:e2e
+      - run: pnpm test:e2e
         timeout-minutes: 30
+      - name: Upload browser-test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: release-e2e-test-results
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: warn
+          retention-days: 7
 
-  bump-version:
-    name: Bump version and create tag
+  release:
+    name: Create workflow-graph-organizer-v1.0.0 release
+    needs: verify
     runs-on: ubuntu-latest
-    needs: test
-    if: github.actor == github.repository_owner && github.ref == 'refs/heads/main'
-    outputs:
-      previous-version: ${{ steps.versions.outputs.previous-version }}
-      current-version: ${{ steps.versions.outputs.current-version }}
     permissions:
       contents: write
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
+          ref: ${{ needs.verify.outputs.release-sha }}
           fetch-depth: 0
-
-      - name: Use Python from .python-version
-        uses: actions/setup-python@v5
-        with:
-          python-version-file: ".python-version"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-
-      - name: Configure Git for GitHub Actions bot
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Sync Python dependencies
-        run: uv sync --locked --group dev
-
-      - name: Compute release version
-        id: versions
+      - name: Create prefixed tag and matching GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ needs.verify.outputs.release-sha }}
         shell: bash
         run: |
-          previous_version="$(uv run bump-my-version show current_version)"
-          current_version="$(uv run bump-my-version show --increment "${{ github.event.inputs.bump_type }}" new_version)"
-          {
-            echo "previous-version=${previous_version}"
-            echo "current-version=${current_version}"
-          } >> "$GITHUB_OUTPUT"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git tag -a workflow-graph-organizer-v1.0.0 -m "Release workflow-graph-organizer-v1.0.0" "$RELEASE_SHA"
+          git push origin workflow-graph-organizer-v1.0.0
+          gh release create workflow-graph-organizer-v1.0.0 --target "$RELEASE_SHA" --title "workflow-graph-organizer-v1.0.0" --generate-notes
 
-      - name: Bump version and refresh uv.lock
-        run: |
-          uv run bump-my-version bump --no-commit --no-tag ${{ github.event.inputs.bump_type }}
-          uv lock
-
-      - name: Commit version bump
-        run: |
-          git add .python-version pyproject.toml package.json src/settings.ts uv.lock
-          git commit -m "chore: bump version to ${{ steps.versions.outputs.current-version }} [skip ci]"
-
-      - name: Create release tag
-        run: git tag "v${{ steps.versions.outputs.current-version }}" -m "Release version ${{ steps.versions.outputs.current-version }}"
-
-      - name: Push version commit and tag
-        run: git push origin HEAD:main --follow-tags
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.versions.outputs.current-version }}
-          name: Release v${{ steps.versions.outputs.current-version }}
-          body: |
-            ## Version ${{ steps.versions.outputs.current-version }}
-
-            Bumped from version ${{ steps.versions.outputs.previous-version }} to ${{ steps.versions.outputs.current-version }}
-
-            This release was automatically created by the version bump workflow.
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-
-  publish-node:
-    name: Publish Custom Node to registry
+  registry:
+    name: Publish exact reviewed checkout to Comfy Registry
+    needs: [verify, release]
     runs-on: ubuntu-latest
-    needs: bump-version
-    if: github.actor == github.repository_owner && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-        with:
-          ref: v${{ needs.bump-version.outputs.current-version }}
-          fetch-depth: 0
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "pnpm"
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Build custom node
-        run: pnpm build
-
-      - name: Publish Custom Node
-        uses: Comfy-Org/publish-node-action@main
+      - uses: Comfy-Org/publish-node-action@1.0.1
         with:
           personal_access_token: ${{ secrets.REGISTRY_ACCESS_TOKEN }}
-          skip_checkout: "true"
-
-  publish-npm:
-    name: Publish to npm
-    runs-on: ubuntu-latest
-    needs: bump-version
-    if: github.actor == github.repository_owner && github.ref == 'refs/heads/main'
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-        with:
-          ref: v${{ needs.bump-version.outputs.current-version }}
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "pnpm"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Build library
-        run: pnpm build:lib
-
-      - name: Smoke test
-        run: node scripts/smoke-core-package.mjs
-
-      - name: Publish to npm
-        run: pnpm publish --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

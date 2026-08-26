@@ -1,0 +1,37 @@
+name: Bug report
+description: Report a reproducible problem with Workflow Graph Organizer
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Please remove the original ComfyUI Node Organizer before reporting a problem.
+  - type: input
+    id: version
+    attributes:
+      label: Extension version or commit
+    validations:
+      required: true
+  - type: input
+    id: comfyui-version
+    attributes:
+      label: ComfyUI frontend/server version
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Minimal reproduction steps
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Minimal workflow JSON
+      description: Attach a minimized workflow with sensitive data removed.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Browser-console output
