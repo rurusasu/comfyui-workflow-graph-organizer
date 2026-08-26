@@ -39,8 +39,11 @@ describe("public identity", () => {
     type RegisteredExtension = {
       name: string;
       commands: Array<{ id: string }>;
-      keybindings: Array<{ commandId: string }>;
-      menuCommands: Array<{ commands: string[] }>;
+      keybindings: Array<{
+        commandId: string;
+        combo: { key: string; shift?: boolean };
+      }>;
+      menuCommands: Array<{ path: string[]; commands: string[] }>;
       settings: Array<{ id: string; category: string[] }>;
     };
     const globalScope = globalThis as typeof globalThis & {
@@ -75,25 +78,65 @@ describe("public identity", () => {
         "workflow-graph-organizer.organize-workflow",
         "workflow-graph-organizer.organize-groups",
       ]);
-      expect(extension.keybindings.map(({ commandId }) => commandId)).toEqual([
-        "workflow-graph-organizer.organize",
+      expect(extension.keybindings).toEqual([
+        {
+          commandId: "workflow-graph-organizer.organize",
+          combo: { key: "o", shift: true },
+        },
       ]);
-      expect(extension.menuCommands.flatMap(({ commands }) => commands)).toEqual([
-        "workflow-graph-organizer.organize-workflow",
-        "workflow-graph-organizer.organize-groups",
+      expect(extension.menuCommands).toEqual([
+        {
+          path: ["Extensions", "Workflow Graph Organizer"],
+          commands: [
+            "workflow-graph-organizer.organize-workflow",
+            "workflow-graph-organizer.organize-groups",
+          ],
+        },
       ]);
-      expect(extension.settings.every(({ id }) =>
-        id.startsWith("Workflow Graph Organizer."),
-      )).toBe(true);
-      expect(extension.settings.every(({ category }) =>
-        category[0] === "Workflow Graph Organizer",
-      )).toBe(true);
+      expect(extension.settings.map(({ id, category }) => ({ id, category }))).toEqual([
+        {
+          id: "Workflow Graph Organizer.About",
+          category: ["Workflow Graph Organizer", "About", "Version"],
+        },
+        {
+          id: "Workflow Graph Organizer.Default Algorithm",
+          category: ["Workflow Graph Organizer", "Layout", "Algorithm"],
+        },
+        {
+          id: "Workflow Graph Organizer.Horizontal Gap",
+          category: ["Workflow Graph Organizer", "Layout", "Horizontal Gap"],
+        },
+        {
+          id: "Workflow Graph Organizer.Vertical Gap",
+          category: ["Workflow Graph Organizer", "Layout", "Vertical Gap"],
+        },
+        {
+          id: "Workflow Graph Organizer.Group Padding",
+          category: ["Workflow Graph Organizer", "Layout", "Group Padding"],
+        },
+        {
+          id: "Workflow Graph Organizer.Disconnected Gap",
+          category: ["Workflow Graph Organizer", "Layout", "Disconnected Gap"],
+        },
+        {
+          id: "Workflow Graph Organizer.Fit to View",
+          category: ["Workflow Graph Organizer", "Behavior", "Fit to View"],
+        },
+        {
+          id: "Workflow Graph Organizer.Keybindings",
+          category: ["Workflow Graph Organizer", "Keybindings", "Info"],
+        },
+        {
+          id: "Workflow Graph Organizer.Debug Logging",
+          category: ["Workflow Graph Organizer", "Advanced", "Debug Logging"],
+        },
+      ]);
 
       const registrationIds = JSON.stringify({
         name: extension.name,
         commands: extension.commands.map(({ id }) => id),
-        keybindings: extension.keybindings.map(({ commandId }) => commandId),
-        menuCommands: extension.menuCommands.flatMap(({ commands }) => commands),
+        keybindings: extension.keybindings,
+        menuCommands: extension.menuCommands,
         settings: extension.settings,
       });
       expect(registrationIds).not.toContain(UPSTREAM_EXTENSION_NAME);
