@@ -15,6 +15,11 @@ import {
   isGroupInsideGroup,
   isNodeCenterInsideGroup,
 } from "../../src/group-geometry";
+import {
+  captureWorkflowStructure,
+  DEFAULT_STRUCTURED_LAYOUT_CONFIG,
+  validateStructuredLayout,
+} from "../../src/structured-layout";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +40,7 @@ export interface ExtractedLink {
 }
 
 export interface ExtractedGroup {
+  id: number;
   title: string;
   pos: [number, number];
   size: [number, number];
@@ -122,6 +128,9 @@ export async function loadWorkflow(
   page: Page,
   workflow: Record<string, unknown>,
 ): Promise<void> {
+  const expectedNodeCount = Array.isArray(workflow.nodes)
+    ? workflow.nodes.length
+    : 0;
   await page.evaluate(async (data: Record<string, unknown>) => {
     const w = window as unknown as Record<string, unknown>;
     const appObj = w.app as Record<string, unknown>;
@@ -134,7 +143,7 @@ export async function loadWorkflow(
 
   // Wait for ALL nodes to have non-zero sizes
   await page.waitForFunction(
-    () => {
+    (expectedNodes: number) => {
       const w = window as unknown as Record<string, unknown>;
       const appObj = w.app as Record<string, unknown>;
       const canvas = appObj.canvas as
@@ -147,12 +156,13 @@ export async function loadWorkflow(
         appObj.graph) as Record<string, unknown> | undefined;
       if (!graph) return false;
       const nodes = graph._nodes as Array<Record<string, unknown>> | undefined;
-      if (!nodes || nodes.length === 0) return true;
+      if (!nodes || nodes.length !== expectedNodes) return false;
       return nodes.every((n) => {
         const size = n.size as ArrayLike<number> | undefined;
         return size && Number(size[0]) > 0 && Number(size[1]) > 0;
       });
     },
+    expectedNodeCount,
     { timeout: e2eConfig.timeouts.organize },
   );
 
@@ -191,24 +201,37 @@ export async function loadWorkflow(
 }
 
 /**
- * Trigger "Organize Workflow" via canvas right-click context menu.
- * Clicks the canvas center, opens context menu, then clicks the menu item.
+ * Trigger the preserved node-only command used by upstream-layout regressions.
  */
 export async function triggerOrganize(page: Page): Promise<void> {
+  await triggerOrganizerCommand(page, "workflow-graph-organizer.organize-nodes-only");
+}
+
+/** Trigger the primary whole-workflow command through ComfyUI's command API. */
+export async function triggerWholeWorkflow(page: Page): Promise<void> {
+  await triggerOrganizerCommand(page, "workflow-graph-organizer.organize");
+}
+
+async function triggerOrganizerCommand(page: Page, commandId: string): Promise<void> {
   // Capture positions before so we can detect when layout completes
   const beforePositions = await extractNodePositionMap(page);
 
   // Execute the organize command directly via ComfyUI's command API
-  await page.evaluate(() => {
+  await page.evaluate((commandId: string) => {
     const w = window as unknown as Record<string, unknown>;
     const appObj = w.app as Record<string, unknown>;
     const em = appObj.extensionManager as Record<string, unknown>;
     const command = em.command as { execute: (id: string) => void };
-    command.execute("workflow-graph-organizer.organize-workflow");
-  });
+    command.execute(commandId);
+  }, commandId);
 
   // Wait for layout to complete — positions should change (or stabilize for empty graphs)
   await waitForPositionsToChange(page, beforePositions);
+}
+
+/** Trigger the preserved upstream-compatible node-only command. */
+export async function triggerOrganizeNodesOnly(page: Page): Promise<void> {
+  await triggerOrganize(page);
 }
 
 export async function setNumericSetting(
@@ -423,6 +446,7 @@ export async function extractGraphState(page: Page): Promise<GraphState> {
       const gPos = (g._pos ?? g.pos) as ArrayLike<number>;
       const gSize = (g._size ?? g.size) as ArrayLike<number>;
       return {
+        id: Number(g.id),
         title: (g.title as string) ?? "Untitled",
         pos: [Number(gPos[0]), Number(gPos[1])] as [number, number],
         size: [Number(gSize[0]), Number(gSize[1])] as [number, number],
@@ -856,7 +880,46 @@ export async function assertIdempotent(page: Page): Promise<void> {
     }
   }
 
+  for (const group1 of state1.groups) {
+    const group2 = state2.groups.find((candidate) => candidate.id === group1.id);
+    if (!group2) {
+      diffs.push(`Background ${group1.id} missing after second organize`);
+      continue;
+    }
+    const before = [...group1.pos, ...group1.size];
+    const after = [...group2.pos, ...group2.size];
+    if (before.some((value, index) => Math.abs(value - after[index]!) > tolerance)) {
+      diffs.push(`Background ${group1.id} changed after second organize`);
+    }
+  }
+
   expect(diffs, `Layout not idempotent: ${diffs.length} nodes moved`).toEqual([]);
+}
+
+/** Assert whole-workflow geometry with the same pure validator used at runtime. */
+export async function assertStructuredWorkflowInvariants(page: Page): Promise<void> {
+  const state = await extractGraphState(page);
+  const nodes = state.nodes.map((node) => ({
+    id: String(node.id),
+    type: node.type,
+    x: node.pos[0],
+    y: node.pos[1],
+    width: node.size[0],
+    height: node.size[1],
+  }));
+  const groups = state.groups.map((group) => ({
+    id: `group:${group.id}`,
+    x: group.pos[0],
+    y: group.pos[1],
+    width: group.size[0],
+    height: group.size[1],
+  }));
+  const structure = captureWorkflowStructure({ nodes, groups });
+  const violations = validateStructuredLayout(
+    { nodes, groups, structure },
+    DEFAULT_STRUCTURED_LAYOUT_CONFIG,
+  );
+  expect(violations).toEqual([]);
 }
 
 // ── Screenshots ──────────────────────────────────────────────────────────────

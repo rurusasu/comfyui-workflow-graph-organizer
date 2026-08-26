@@ -75,7 +75,7 @@ describe("public identity", () => {
       expect(extension.name).toBe("rurusasu.workflow-graph-organizer");
       expect(extension.commands.map(({ id }) => id)).toEqual([
         "workflow-graph-organizer.organize",
-        "workflow-graph-organizer.organize-workflow",
+        "workflow-graph-organizer.organize-nodes-only",
         "workflow-graph-organizer.organize-groups",
       ]);
       expect(extension.keybindings).toEqual([
@@ -88,7 +88,8 @@ describe("public identity", () => {
         {
           path: ["Extensions", "Workflow Graph Organizer"],
           commands: [
-            "workflow-graph-organizer.organize-workflow",
+            "workflow-graph-organizer.organize",
+            "workflow-graph-organizer.organize-nodes-only",
             "workflow-graph-organizer.organize-groups",
           ],
         },
@@ -117,6 +118,38 @@ describe("public identity", () => {
         {
           id: "Workflow Graph Organizer.Disconnected Gap",
           category: ["Workflow Graph Organizer", "Layout", "Disconnected Gap"],
+        },
+        {
+          id: "Workflow Graph Organizer.Background Padding Top",
+          category: ["Workflow Graph Organizer", "Whole Workflow", "Background Padding Top"],
+        },
+        {
+          id: "Workflow Graph Organizer.Background Padding Right",
+          category: ["Workflow Graph Organizer", "Whole Workflow", "Background Padding Right"],
+        },
+        {
+          id: "Workflow Graph Organizer.Background Padding Bottom",
+          category: ["Workflow Graph Organizer", "Whole Workflow", "Background Padding Bottom"],
+        },
+        {
+          id: "Workflow Graph Organizer.Background Padding Left",
+          category: ["Workflow Graph Organizer", "Whole Workflow", "Background Padding Left"],
+        },
+        {
+          id: "Workflow Graph Organizer.Root Background Gap",
+          category: ["Workflow Graph Organizer", "Whole Workflow", "Root Background Gap"],
+        },
+        {
+          id: "Workflow Graph Organizer.Comment Gap",
+          category: ["Workflow Graph Organizer", "Whole Workflow", "Comment Gap"],
+        },
+        {
+          id: "Workflow Graph Organizer.Comment Lane Gap",
+          category: ["Workflow Graph Organizer", "Whole Workflow", "Comment Lane Gap"],
+        },
+        {
+          id: "Workflow Graph Organizer.Ungrouped Cluster Gap",
+          category: ["Workflow Graph Organizer", "Whole Workflow", "Ungrouped Cluster Gap"],
         },
         {
           id: "Workflow Graph Organizer.Fit to View",

@@ -6,6 +6,8 @@ import {
   extractGraphState,
   triggerOrganize,
   triggerOrganizeGroup,
+  triggerWholeWorkflow,
+  assertStructuredWorkflowInvariants,
 } from "./helpers";
 import { loadFixture } from "./fixtures";
 import { SETTING_IDS } from "../../src/settings";
@@ -56,8 +58,8 @@ test.describe("UI smoke", () => {
     expect(didAnyNodeMove(before, after)).toBe(true);
   });
 
-  test("context-aware Shift+O organizes selected groups when groups are selected", async ({ page }) => {
-    await loadWorkflow(page, loadFixture("group-test-simple"));
+  test("Shift+O keeps the whole-workflow action primary even when a group is selected", async ({ page }) => {
+    await loadWorkflow(page, loadFixture("whole-workflow-layout"));
 
     const groupTitles = await page.evaluate(() => {
       const w = window as unknown as Record<string, unknown>;
@@ -88,13 +90,41 @@ test.describe("UI smoke", () => {
       canvas.selectedItems = new Set([group]);
     }, groupTitles[0]);
 
-    const before = await extractGraphState(page);
-    // Use Shift+O — should organize the selected group, not the full workflow
     await page.keyboard.press("Shift+O");
     await page.waitForTimeout(1000);
-    const after = await extractGraphState(page);
+    await assertStructuredWorkflowInvariants(page);
+  });
 
-    expect(didAnyNodeMove(before, after)).toBe(true);
+  test("canvas menu and Extensions menu expose the primary whole-workflow action", async ({ page }) => {
+    await loadWorkflow(page, loadFixture("whole-workflow-layout"));
+    await page.evaluate(() => {
+      const appObj = (window as unknown as Record<string, unknown>).app as {
+        extensions: Array<{
+          name: string;
+          getCanvasMenuItems?: () => Array<{
+            content: string;
+            callback: () => void;
+          } | null>;
+        }>;
+      };
+      const extension = appObj.extensions.find(
+        ({ name }) => name === "rurusasu.workflow-graph-organizer",
+      );
+      const item = extension?.getCanvasMenuItems?.().find(
+        (candidate) => candidate?.content === "Organize Workflow",
+      );
+      if (!item) throw new Error("Canvas Organize Workflow item is not registered");
+      item.callback();
+    });
+    await assertStructuredWorkflowInvariants(page);
+
+    await page.evaluate(() => {
+      const appObj = (window as unknown as Record<string, unknown>).app as Record<string, unknown>;
+      const manager = appObj.extensionManager as Record<string, unknown>;
+      const command = manager.command as { execute: (id: string) => void };
+      command.execute("workflow-graph-organizer.organize");
+    });
+    await assertStructuredWorkflowInvariants(page);
   });
 
   test("Organize Group runs layout on the selected group", async ({ page }) => {
@@ -223,7 +253,7 @@ test.describe("Fit to view after organize", () => {
 
     const viewportBefore = await getViewport(page);
 
-    await triggerOrganize(page);
+    await triggerWholeWorkflow(page);
     await page.waitForTimeout(1500);
 
     const viewportAfter = await getViewport(page);
@@ -258,7 +288,7 @@ test.describe("Fit to view after organize", () => {
       }
     });
 
-    await triggerOrganize(page);
+    await triggerWholeWorkflow(page);
     await page.waitForTimeout(1500);
 
     const viewport = await getViewport(page);
@@ -276,7 +306,7 @@ test.describe("Fit to view after organize", () => {
     await enableFitToView(page);
 
     // Organize full workflow first to get a stable viewport
-    await triggerOrganize(page);
+    await triggerWholeWorkflow(page);
     await page.waitForTimeout(1500);
 
     const viewportBefore = await getViewport(page);

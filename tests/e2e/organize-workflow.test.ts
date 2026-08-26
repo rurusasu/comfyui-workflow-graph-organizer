@@ -5,8 +5,10 @@ import {
   extractGraphState,
   extractGroupMemberships,
   triggerOrganize,
+  triggerWholeWorkflow,
   assertInvariants,
   assertIdempotent,
+  assertStructuredWorkflowInvariants,
 } from "./helpers";
 import { loadFixture } from "./fixtures";
 
@@ -14,6 +16,89 @@ test.describe("Organize Workflow", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
     await waitForComfyUI(page);
+  });
+
+  test("whole-workflow-layout: validates backgrounds, nested padding, comment lane, semantics, idempotence, and serialized reload", async ({
+    page,
+  }) => {
+    await loadWorkflow(page, loadFixture("whole-workflow-layout"));
+    const beforeSemantics = await page.evaluate(() => {
+      const appObj = (window as unknown as Record<string, unknown>).app as Record<string, unknown>;
+      const canvas = appObj.canvas as Record<string, unknown> & {
+        getCurrentGraph?: () => Record<string, unknown> | undefined;
+      };
+      const graph = (canvas.getCurrentGraph?.() ?? canvas.graph ?? appObj.graph) as {
+        _nodes: Array<Record<string, unknown>>;
+        links: Map<number, Record<string, unknown>> | Record<string, Record<string, unknown>>;
+      };
+      return {
+        nodes: graph._nodes.map((node) => ({
+          id: node.id,
+          type: node.type,
+          mode: node.mode,
+          widgets: node.widgets_values,
+          inputs: node.inputs,
+        })),
+        links: graph.links instanceof Map ? Array.from(graph.links.values()) : Object.values(graph.links),
+      };
+    });
+
+    await triggerWholeWorkflow(page);
+    await assertStructuredWorkflowInvariants(page);
+    const afterFirstRun = await extractGraphState(page);
+    await triggerWholeWorkflow(page);
+    expect(await extractGraphState(page)).toEqual(afterFirstRun);
+
+    const afterSemantics = await page.evaluate(() => {
+      const appObj = (window as unknown as Record<string, unknown>).app as Record<string, unknown>;
+      const canvas = appObj.canvas as Record<string, unknown> & {
+        getCurrentGraph?: () => Record<string, unknown> | undefined;
+      };
+      const graph = (canvas.getCurrentGraph?.() ?? canvas.graph ?? appObj.graph) as {
+        _nodes: Array<Record<string, unknown>>;
+        links: Map<number, Record<string, unknown>> | Record<string, Record<string, unknown>>;
+      };
+      return {
+        nodes: graph._nodes.map((node) => ({
+          id: node.id,
+          type: node.type,
+          mode: node.mode,
+          widgets: node.widgets_values,
+          inputs: node.inputs,
+        })),
+        links: graph.links instanceof Map ? Array.from(graph.links.values()) : Object.values(graph.links),
+      };
+    });
+    expect(afterSemantics).toEqual(beforeSemantics);
+
+    const organized = await extractGraphState(page);
+    const serialized = await page.evaluate(() => {
+      const appObj = (window as unknown as Record<string, unknown>).app as Record<string, unknown>;
+      const canvas = appObj.canvas as Record<string, unknown> & {
+        getCurrentGraph?: () => Record<string, unknown> | undefined;
+      };
+      const graph = (canvas.getCurrentGraph?.() ?? canvas.graph ?? appObj.graph) as {
+        serialize: () => Record<string, unknown>;
+      };
+      return JSON.stringify(graph.serialize());
+    });
+    expect(serialized).toBeTruthy();
+    await page.reload();
+    await waitForComfyUI(page);
+    await loadWorkflow(page, JSON.parse(serialized) as Record<string, unknown>);
+    expect(await extractGraphState(page)).toEqual(organized);
+  });
+
+  test("whole-workflow-layout: one native undo restores exact geometry", async ({ page }) => {
+    await loadWorkflow(page, loadFixture("whole-workflow-layout"));
+    const before = await extractGraphState(page);
+    await triggerWholeWorkflow(page);
+
+    await page.locator("#graph-canvas").click({ force: true });
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+Z" : "Control+Z");
+    await page.waitForTimeout(500);
+
+    expect(await extractGraphState(page)).toEqual(before);
   });
 
   test("simple-dag: organizes and passes invariants", async ({ page }) => {

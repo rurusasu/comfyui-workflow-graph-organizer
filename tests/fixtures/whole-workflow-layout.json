@@ -54,8 +54,16 @@
   "groups": [
     {
       "id": 1,
+      "title": "Workflow",
+      "bounding": [120, 80, 880, 460],
+      "color": "#3f789e",
+      "font_size": 22,
+      "flags": {}
+    },
+    {
+      "id": 2,
       "title": "Generation",
-      "bounding": [160, 100, 840, 420],
+      "bounding": [160, 120, 760, 340],
       "color": "#3f789e",
       "font_size": 22,
       "flags": {}
