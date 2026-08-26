@@ -35,4 +35,13 @@ describe("E2E snapshot stability contract", () => {
       /openFirstSubgraph\(page\);\s+await waitForSnapshotSurfaceToStabilize\(page\);\s+await triggerOrganize\(page\);/,
     );
   });
+
+  it("does not baseline a graph hidden by ComfyUI's missing-model dialog", () => {
+    const visualRegression = readFileSync(
+      "tests/e2e/visual-regression.test.ts",
+      "utf8",
+    );
+
+    expect(visualRegression).not.toContain('loadFixture("token-testing")');
+  });
 });
