@@ -67,6 +67,8 @@ export interface GraphLike {
   readonly links: Map<number, GraphLink> | Record<number, GraphLink>;
   readonly inputNode?: GraphBoundaryNode;
   readonly outputNode?: GraphBoundaryNode;
+  beforeChange?(): void;
+  afterChange?(): void;
   setDirtyCanvas?(fg: boolean, bg: boolean): void;
 }
 

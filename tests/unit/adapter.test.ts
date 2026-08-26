@@ -472,6 +472,24 @@ describe("extractLayoutInput", () => {
 // ---------------------------------------------------------------------------
 
 describe("applyLayoutOutput", () => {
+  it("does not begin a graph-change transaction for node-only layout output", () => {
+    const events: string[] = [];
+    const graph: GraphLike = {
+      _nodes: [],
+      _groups: [],
+      links: new Map(),
+      beforeChange: () => events.push("before"),
+      afterChange: () => events.push("after"),
+    };
+
+    applyLayoutOutput(graph, {
+      positions: new Map(),
+      groupBounds: new Map(),
+    });
+
+    expect(events).toEqual([]);
+  });
+
   it("applies node positions from layout result", () => {
     const graph = makeGraph({
       nodes: [
