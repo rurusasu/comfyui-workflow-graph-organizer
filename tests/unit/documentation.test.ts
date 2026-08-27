@@ -124,8 +124,15 @@ describe("public documentation", () => {
     );
     expect(managerUpdate).toMatch(/Manager.*update/i);
     expect(managerUpdate).toMatch(/restart\s+ComfyUI/i);
-    expect(managerUpdate).toMatch(/hard-refresh the browser/i);
-    expect(managerUpdate).toMatch(/Version\s+1\.0\.0/);
+    expect(managerUpdate).toMatch(/hard-refresh\s+the browser/i);
+    expect(managerUpdate).toMatch(/Version\s+1\.0\.1/);
+    expect(managerUpdate).toContain(
+      "https://registry.comfy.org/nodes/workflow-graph-organizer",
+    );
+    expect(managerUpdate).toContain(
+      "comfy node install workflow-graph-organizer@1.0.1",
+    );
+    expect(managerUpdate).not.toMatch(/not published yet|not available/i);
 
     const manualUpdate = readme.slice(
       readme.indexOf("### Manual Git installation"),
@@ -134,7 +141,7 @@ describe("public documentation", () => {
     expect(manualUpdate).toContain("git pull --ff-only");
     expect(manualUpdate).toMatch(/restart\s+ComfyUI/i);
     expect(manualUpdate).toMatch(/hard-refresh the browser/i);
-    expect(manualUpdate).toMatch(/Version\s+1\.0\.0/);
+    expect(manualUpdate).toMatch(/Version\s+1\.0\.1/);
   });
 
   it("keeps release metadata, recovery, and failure artifacts complete", () => {
@@ -172,7 +179,7 @@ describe("public documentation", () => {
     expect(publish).toContain("cancel-in-progress: false");
     expect(publish).toMatch(/^permissions:\n  contents: read/m);
     expect(publish).toContain("contents: write");
-    expect(publish).toContain("workflow-graph-organizer-v1.0.0");
+    expect(publish).toContain("workflow-graph-organizer-v1.0.1");
     expect(publish).toContain("git ls-remote --exit-code --refs");
     expect(publish).toContain("gh release view");
     expect(publish).toContain("tagName,name,targetCommitish");
@@ -262,9 +269,13 @@ describe("public documentation", () => {
     const pullRequest = readPublicFile(".github/pull_request_template.md");
 
     expect(changelog).toContain("## [Unreleased]");
-    expect(changelog).toContain("## [1.0.0] - pending");
+    expect(changelog).toContain("## [1.0.1] - 2026-08-27");
+    expect(changelog).toContain("## [1.0.0] - 2026-08-27");
+    expect(changelog).not.toContain("pending");
     expect(changelog).toContain("### Added");
-    expect(changelog).toMatch(/Registry and scoped npm package are not published/i);
+    expect(changelog).toMatch(/1\.0\.1.*Comfy Registry/is);
+    expect(changelog).toMatch(/1\.0\.0.*not published.*Comfy Registry/is);
+    expect(changelog).toMatch(/scoped npm package remains unpublished/i);
     expect(contributing).toContain("Use Node `24`");
     expect(contributing).toContain("dedicated `.test-comfy` WebUI");
     expect(contributing).toContain("## Test-driven development");
@@ -276,6 +287,7 @@ describe("public documentation", () => {
     );
     expect(security).toMatch(/Do not open a public issue/i);
     expect(security).toMatch(/most recent published release/i);
+    expect(security).not.toMatch(/unpublished `1\.0\.0` candidate/i);
     expect(upstream).toContain("git fetch upstream --tags");
     expect(upstream).toContain("git switch -c sync/upstream-2026-08-27 main");
     expect(upstream).toContain("git merge --no-ff upstream/main");

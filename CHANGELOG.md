@@ -9,7 +9,19 @@ Entries use the Keep a Changelog categories and semantic product versions.
 
 - No unreleased product behavior is published from this branch.
 
-## [1.0.0] - pending
+## [1.0.1] - 2026-08-27
+
+### Fixed
+
+- Uses the current non-interactive Comfy Registry publication action while
+  preserving the exact reviewed checkout.
+- Publishes the first installable Comfy Registry version after the `1.0.0`
+  GitHub-only release was blocked by an obsolete comfy-cli option.
+
+The scoped npm package remains unpublished; npm publication is outside this
+release.
+
+## [1.0.0] - 2026-08-27
 
 ### Added
 
@@ -18,6 +30,7 @@ Entries use the Keep a Changelog categories and semantic product versions.
   nodes with validation, rollback, and one undo transaction.
 - Preserves node-only, selected-group, title-token, and algorithm controls.
 
-The Comfy Registry and scoped npm package are not published. This becomes a
-release only when the prefixed `workflow-graph-organizer-v1.0.0` GitHub release
-is created.
+The prefixed `workflow-graph-organizer-v1.0.0` GitHub release was created, but
+this version was not published to the Comfy Registry because the Registry's
+tagged publication action used an obsolete comfy-cli option. The corrected
+Registry publication starts with `1.0.1`.

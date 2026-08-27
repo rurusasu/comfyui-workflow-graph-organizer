@@ -1,6 +1,6 @@
 {
   "name": "@rurusasu/workflow-graph-organizer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "ComfyUI Workflow Graph Organizer",
   "type": "module",
   "main": "./lib/core.js",

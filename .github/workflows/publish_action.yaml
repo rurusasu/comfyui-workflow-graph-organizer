@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   verify:
-    name: Verify reviewed main at 1.0.0
+    name: Verify reviewed main at 1.0.1
     if: github.ref == 'refs/heads/main' && github.ref_protected
     runs-on: ubuntu-latest
     outputs:
@@ -44,7 +44,7 @@ jobs:
           const packageJson = require("./package.json");
           const expected = {
             name: "@rurusasu/workflow-graph-organizer",
-            version: "1.0.0",
+            version: "1.0.1",
             repository: {
               type: "git",
               url: "git+https://github.com/rurusasu/comfyui-workflow-graph-organizer.git",
@@ -61,11 +61,11 @@ jobs:
           }
           NODE
           grep -Fx 'name = "workflow-graph-organizer"' pyproject.toml
-          grep -Fx 'version = "1.0.0"' pyproject.toml
+          grep -Fx 'version = "1.0.1"' pyproject.toml
           grep -Fx 'Repository = "https://github.com/rurusasu/comfyui-workflow-graph-organizer"' pyproject.toml
           grep -Fx 'DisplayName = "ComfyUI Workflow Graph Organizer"' pyproject.toml
           grep -Fx 'PublisherId = "rurusasu"' pyproject.toml
-          grep -Fx 'export const CURRENT_VERSION = "1.0.0";' src/settings.ts
+          grep -Fx 'export const CURRENT_VERSION = "1.0.1";' src/settings.ts
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - run: git diff --check HEAD^ HEAD
@@ -104,7 +104,7 @@ jobs:
           retention-days: 7
 
   release:
-    name: Create workflow-graph-organizer-v1.0.0 release
+    name: Create workflow-graph-organizer-v1.0.1 release
     needs: verify
     runs-on: ubuntu-latest
     permissions:
@@ -118,7 +118,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ needs.verify.outputs.release-sha }}
-          TAG: workflow-graph-organizer-v1.0.0
+          TAG: workflow-graph-organizer-v1.0.1
         shell: bash
         run: |
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
@@ -181,7 +181,7 @@ jobs:
           NODE_ID: workflow-graph-organizer
           PUBLISHER_ID: rurusasu
           REPOSITORY_URL: https://github.com/rurusasu/comfyui-workflow-graph-organizer
-          VERSION: 1.0.0
+          VERSION: 1.0.1
         shell: bash
         run: |
           version_body="$(mktemp)"
