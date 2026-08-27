@@ -20,6 +20,4 @@ Report issues in this repository's source, build output, release workflow, or
 package metadata. Report platform vulnerabilities to the appropriate upstream
 project.
 
-The current security support target is the most recent published release; the
-unpublished `1.0.0` candidate is assessed before release but is not a supported
-production version.
+The current security support target is the most recent published release.

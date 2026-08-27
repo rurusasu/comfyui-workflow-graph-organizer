@@ -10,7 +10,7 @@ export const UPSTREAM_EXTENSION_NAME = "comfy-node-organizer";
 export const UPSTREAM_COMMAND_PREFIX = "node-organizer";
 export const REPOSITORY_URL =
   "https://github.com/rurusasu/comfyui-workflow-graph-organizer";
-export const CURRENT_VERSION = "1.0.0";
+export const CURRENT_VERSION = "1.0.1";
 
 export const DEFAULT_ALGORITHM_OPTIONS = [
   "sugiyama",

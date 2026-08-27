@@ -18,7 +18,7 @@ describe("public identity", () => {
     expect(REPOSITORY_URL).toBe(
       "https://github.com/rurusasu/comfyui-workflow-graph-organizer",
     );
-    expect(CURRENT_VERSION).toBe("1.0.0");
+    expect(CURRENT_VERSION).toBe("1.0.1");
   });
 
   it("keeps Registry and npm metadata distinct and synchronized", () => {
@@ -26,13 +26,13 @@ describe("public identity", () => {
     const pyproject = readFileSync("pyproject.toml", "utf8");
 
     expect(packageJson.name).toBe("@rurusasu/workflow-graph-organizer");
-    expect(packageJson.version).toBe("1.0.0");
+    expect(packageJson.version).toBe("1.0.1");
     expect(pyproject).toContain('name = "workflow-graph-organizer"');
     expect(pyproject).toContain(
       'DisplayName = "ComfyUI Workflow Graph Organizer"',
     );
     expect(pyproject).toContain('PublisherId = "rurusasu"');
-    expect(pyproject).toContain('version = "1.0.0"');
+    expect(pyproject).toContain('version = "1.0.1"');
   });
 
   it("registers only workflow graph organizer IDs with ComfyUI", async () => {

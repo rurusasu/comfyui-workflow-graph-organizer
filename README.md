@@ -52,15 +52,19 @@ images above show the same fixture before and after the primary action.
 
 ### ComfyUI Manager / Registry
 
-The Comfy Registry node is not published yet, so Manager/Registry installation
-is not available. After the reviewed GitHub release candidate is published,
-search for `workflow-graph-organizer` in ComfyUI Manager. No Registry URL is
-included until it resolves.
+The canonical listing is
+[workflow-graph-organizer on Comfy Registry](https://registry.comfy.org/nodes/workflow-graph-organizer).
+Search for `workflow-graph-organizer` in ComfyUI Manager, or install the exact
+release with Comfy CLI:
 
-When it is available, use Manager's update control for this node. Restart
-ComfyUI, hard-refresh the browser, then open **Settings > Workflow Graph
-Organizer > About** and verify the displayed `Version 1.0.0` before removing a
-recoverable prior install.
+```bash
+comfy node install workflow-graph-organizer@1.0.1
+```
+
+Use Manager's update control for later releases. Restart ComfyUI, hard-refresh
+the browser, then open **Settings > Workflow Graph Organizer > About** and
+verify the displayed `Version 1.0.1` before removing a recoverable prior
+install.
 
 ### Manual Git installation
 
@@ -78,7 +82,7 @@ git pull --ff-only
 ```
 
 Restart ComfyUI after updating, hard-refresh the browser, and verify `Version
-1.0.0` in **Settings > Workflow Graph Organizer > About**. For a
+1.0.1` in **Settings > Workflow Graph Organizer > About**. For a
 release-candidate checkout, compare `git rev-parse HEAD` with the commit shown
 by the matching GitHub release before updating.
 
@@ -98,7 +102,7 @@ dependency. Double installation is unsupported: do not install both extensions.
 
 The extension warns when the original organizer is still registered. Verify
 the migration by opening **Settings > Workflow Graph Organizer > About**,
-confirming `Version 1.0.0`, and running **Organize Workflow** on a saved copy
+confirming `Version 1.0.1`, and running **Organize Workflow** on a saved copy
 of a workflow.
 
 ## Usage
@@ -180,7 +184,7 @@ a claim that other frontend/server versions or operating systems are supported.
 | “Workflow normalized” warning | The node engine made no observable geometry change; backgrounds and comments were normalized. |
 | Organization error | Original geometry is restored; report the minimal JSON and browser-console error. |
 | Stale changes | Restart ComfyUI and hard-refresh the browser bundle. |
-| Manager update failure or no reflected update | Restart ComfyUI, hard-refresh the browser, verify `Version 1.0.0` in **Settings > Workflow Graph Organizer > About**, then check Manager's update log before retrying. |
+| Manager update failure or no reflected update | Restart ComfyUI, hard-refresh the browser, verify `Version 1.0.1` in **Settings > Workflow Graph Organizer > About**, then check Manager's update log before retrying. |
 
 Use the [bug report form](.github/ISSUE_TEMPLATE/bug.yml) or
 [feature request form](.github/ISSUE_TEMPLATE/feature.yml).
@@ -242,7 +246,7 @@ rolls back the exact snapshot.
 
 ## Versioning
 
-The existing version is `1.0.0` in `package.json` and `pyproject.toml`. GitHub
+The existing version is `1.0.1` in `package.json` and `pyproject.toml`. GitHub
 tags use `workflow-graph-organizer-v<version>` to avoid upstream tag collisions.
 The manual workflow runs only from reviewed `main`, verifies all gates, creates
 that prefixed tag and GitHub release, then publishes the same checkout. On a
@@ -250,10 +254,11 @@ retry, it observes the exact Registry version and node metadata: an exact
 active or pending match skips publication; an absent version publishes; a
 flagged, deleted, banned, or mismatched record fails for review.
 
-The Comfy Registry node and scoped npm package are not published. There is no
-npm publication step and no Registry or npm link until those destinations
-resolve. The [GitHub releases page](https://github.com/rurusasu/comfyui-workflow-graph-organizer/releases)
-is the release-candidate destination; it currently has no `1.0.0` candidate.
+The Comfy Registry node is published through the reviewed release workflow;
+the scoped npm package remains unpublished. There is no npm publication step.
+Use the [Comfy Registry listing](https://registry.comfy.org/nodes/workflow-graph-organizer)
+for installation and the [GitHub releases page](https://github.com/rurusasu/comfyui-workflow-graph-organizer/releases)
+for immutable source releases.
 
 ## Upstream
 
