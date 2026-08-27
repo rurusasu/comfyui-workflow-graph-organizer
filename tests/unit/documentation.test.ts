@@ -211,6 +211,17 @@ describe("public documentation", () => {
     expect(publish).toContain('PublisherId = "rurusasu"');
   });
 
+  it("publishes the reviewed checkout with the fixed official Registry action", () => {
+    const publish = readPublicFile(".github/workflows/publish_action.yaml");
+
+    expect(publish).toContain(
+      "uses: Comfy-Org/publish-node-action@d2366e7abb6ab16f3bb03e3520ae25c8cf749bc9",
+    );
+    expect(publish).toMatch(
+      /uses: Comfy-Org\/publish-node-action@d2366e7abb6ab16f3bb03e3520ae25c8cf749bc9\n\s+with:\n\s+skip_checkout: true\n\s+personal_access_token:/,
+    );
+  });
+
   it("documents a self-contained, dedicated three-command capture", () => {
     const readme = readPublicFile("README.md");
     const captureSection = readme.slice(
